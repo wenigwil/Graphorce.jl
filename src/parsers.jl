@@ -397,7 +397,7 @@ struct dfpt_qeOutputData
         # ntype are the number species of atoms
         mass = Vector{Float64}(undef, ntype)
         label = Array{String}(undef, ntype)
-        for i = 1:ntype
+        for i in 1:ntype
             temp = split(readline(output_file))
             label[i] = chop(temp[2], head = 1, tail = 1)
             mass[i] = parse(Float64, temp[3])
@@ -413,7 +413,7 @@ struct dfpt_qeOutputData
         # position (basis_pos)
         tipo = Vector{Int64}(undef, nat)
         basis_pos = Matrix{Float64}(undef, (nat, 3))
-        for i = 1:nat
+        for i in 1:nat
             temp = split(readline(output_file))
             tipo[i] = parse(Int64, temp[2])
             basis_pos[i, :] = parse.(Float64, temp[3:end])
@@ -431,7 +431,7 @@ struct dfpt_qeOutputData
             # NEXT 3 LINES
             # Read the dielectric tensor
             dielectric_tensor = Matrix{Float64}(undef, (3, 3))
-            for i = 1:3
+            for i in 1:3
                 dielectric_tensor[i, :] = parse.(Float64, split(readline(output_file)))
             end
             Logging.@debug "readifc2() Next 3 lines read... Dielectric Tensor" dielectric_tensor
@@ -439,10 +439,10 @@ struct dfpt_qeOutputData
             # NEXT 4*nat LINES
             # Read the Born effective charges
             zeff = Array{Float64}(undef, (nat, 3, 3))
-            for i = 1:nat
+            for i in 1:nat
                 # We are not reading the first index. We already know that
                 readline(output_file)
-                for j = 1:3
+                for j in 1:3
                     zeff[i, j, :] = parse.(Float64, split(readline(output_file)))
                 end
             end
@@ -469,13 +469,13 @@ struct dfpt_qeOutputData
         """ ifc2_tensor_dims
 
         # Reading the force constant-tensor.
-        for i = 1:nfc2
+        for i in 1:nfc2
             # Reading the atom displacements and atom/species addresses
             i_displ, j_displ, i_at_addr, j_at_addr =
                 parse.(Int64, split(readline(output_file)))
 
             # Reading the supercell coordinates and actual ifc2-tensor elements
-            for j = 1:no_qcells
+            for j in 1:no_qcells
                 temp = split(readline(output_file))
 
                 i_qcell, j_qcell, k_qcell = parse.(Int64, temp[1:(end - 1)])

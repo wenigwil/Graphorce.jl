@@ -1,3 +1,15 @@
+#=
+  ____   _                                 
+ |  _ \ | |__    ___   _ __    ___   _ __  
+ | |_) || '_ \  / _ \ | '_ \  / _ \ | '_ \ 
+ |  __/ | | | || (_) || | | || (_) || | | |
+ |_|    |_| |_| \___/ |_| |_| \___/ |_| |_|
+===========================================
+
+This file contains the inner workings for performing calculations with
+force constants obtained.
+=#
+
 module Phonon
 
 import Logging
@@ -86,7 +98,7 @@ end
 Build all vectors that connect each position defined in `basis`.
 
 The tensor that is built is anti-symmetric in the first two indices and
-thus contains zero-vectors this diagonal. The `(i,j)`-th element of
+thus contains zero-vectors on its diagonal. The `(i,j)`-th element of
 `basisconnectors` contains the difference of `basis[i]` and `basis[j]` with
 the `(j,i)`-th element being the negative of the former mentioned.
 """
@@ -104,7 +116,7 @@ function build_basisconnectors(numbasisatoms::Int64, basis::Matrix{Float64})
     end
 
     # Connectors are the difference between the dublicate and the 
-    # "transpose" (as for a matrix vector-elements) of the dublicate 
+    # "transpose" (as for a matrix with vector-elements) of the dublicate 
     basisconnectors = basis_dublicate - permutedims(basis_dublicate, (2, 1, 3))
 
     return basisconnectors
@@ -125,21 +137,22 @@ multiplicity of supercells in each direction of `unit_lattvecs`.
 
 # Important
 
-  - For now `super_multiplicity_ultra` must an odd number
+  - For now `super_multiplicity_ultra` must an even number
   - It is assumed that the `unit_lattvecs` column (2nd index) goes through the
     cartesian coordinates!
   - It is assumed that the orderings in the `unit_multiplicity_super` and
     `unit_lattvecs` align
 """
-function build_supercell_positions(
+function build_supercell_points(
     unit_multiplicity_super::Vector{Int64},
     super_multiplicity_ultra::Vector{Int64},
     unit_lattvecs::Matrix{Float64},
 )
 
-    # Supercell multiplicity must be odd in every direction
+    # Supercell multiplicity must be even in every direction such that we 
+    # have an origin in the middle of the cube
     for i in 1:3
-        if iseven(super_multiplicity_ultra[i]) || super_multiplicity_ultra[i] < 3
+        if isodd(super_multiplicity_ultra[i]) || super_multiplicity_ultra[i] < 2
             Logging.@error "Multiplicity of the supercells in the ultracell is not valid!"
             return
         end
@@ -152,36 +165,44 @@ function build_supercell_positions(
         super_lattvecs[row, :] = unit_lattvecs[row, :] * unit_multiplicity_super[row]
     end
 
-    # The supercell_positions array will not contain the origin (0,0,0)
-    num_supercell_positions = prod(super_multiplicity_ultra) - 1
+    # The supercell multiplicity gives the number of cells we will build 
+    # inside the ultracell in each lattvec directions. The number of 
+    # supercell borders in the i-th direction is 
+    # super_multiplicity_ultra[i]+1
+    num_supercell_points = prod(super_multiplicity_ultra .+ 1)
+    Logging.@info "Phonon.build_supercell_positions: The number of supercell point is" num_supercell_points
     # Saving the supercell positions in the ultracell
-    super_positions = Matrix{Float64}(undef, (num_supercell_positions, 3))
+    super_points = Matrix{Float64}(undef, (num_supercell_points, 3))
     # Saving the distance of the bisector between every supercell position 
     # and the origin
-    super_bisector_dist = Vector{Float64}(undef, num_supercell_positions)
+    super_bisector_dist = Vector{Float64}(undef, num_supercell_points)
 
     # In Quantum Espresso ultra_range_max is fixed to 2
     ultra_range_max = div.(super_multiplicity_ultra, 2)
     ultra_range = range.(-ultra_range_max, ultra_range_max)
+    Logging.@info """
+        Phonon.build_supercell_positions: The loop ranges are
+    """ super_multiplicity_ultra ultra_range
     # Building the ultracell as a cube with the same number of 
-    # supercell_positions in every direction around the origin.
+    # supercell_positions in every direction around the origin which is 
+    # (0,0,0) here
     j = 1
     for m1 in ultra_range[1]
         for m2 in ultra_range[2]
             for m3 in ultra_range[3]
-                # Exclude the origin as mentioned before
-                if iszero([m1, m2, m3])
-                    continue
-                end
+                # IMPORTANT: in the Quantum Espresso and elphbolt the 
+                # origin is skipped at this step here. I want to keep the 
+                # origin so it is more verbose (or direct whatever) to skip 
+                # it later on and not hidden inside the data structure
 
-                super_positions[j, :] = begin
+                super_points[j, :] = begin
                     super_lattvecs[1, :] * m1 +
                     super_lattvecs[2, :] * m2 +
                     super_lattvecs[3, :] * m3
                 end
 
                 super_bisector_dist[j] = begin
-                    0.5 * transpose(super_positions[j, :]) * super_positions[j, :]
+                    0.5 * transpose(super_points[j, :]) * super_points[j, :]
                 end
 
                 j += 1
@@ -189,7 +210,121 @@ function build_supercell_positions(
         end
     end
 
-    return super_positions, super_bisector_dist
+    return super_points, super_bisector_dist
+end
+
+"""
+    build_unitcell_points(
+        unit_multiplicity_super::Vector{Int64},
+        super_multiplicity_ultra::Vector{Int64},
+        unit_lattvecs::Matrix{Float64})
+
+Build a finite lattice of the size of an ultracell specified by the
+supercell multiplicity. The lattic is unitcell periodic.
+
+# Important
+
+  - For now `super_multiplicity_ultra` must an even number
+  - It is assumed that the `unit_lattvecs` column (2nd index) goes through the
+    cartesian coordinates!
+  - It is assumed that the orderings in the `unit_multiplicity_super` and
+    `unit_lattvecs` align
+"""
+function build_unitcell_points(
+    unit_multiplicity_super::Vector{Int64},
+    super_multiplicity_ultra::Vector{Int64},
+    unit_lattvecs::Matrix{Float64},
+)
+
+    # super_multiplicity_ultra must be confined to even numbers. See the 
+    # function Phonon.build_super_points()
+    for i in 1:3
+        if isodd(super_multiplicity_ultra[i]) || super_multiplicity_ultra[i] < 2
+            Logging.@error "Multiplicity of the supercells in the ultracell is not valid!"
+            return
+        end
+    end
+
+    # The number of unitcell points can be calculated as follows. In each 
+    # i-th lattvec direction there are super_mult[i]*unit_mult[i]+1 
+    # unitcell points because there super_mult[i]*unit_mult[i] cells in 
+    # that lattvec direction. For three directions the following gives the 
+    # number of unitcell points.
+    num_unit_points = begin
+        prod(super_multiplicity_ultra .* unit_multiplicity_super .+ 1)
+    end
+    Logging.@info """
+        Phonons.build_unitcell_points: The number of unitcell points is
+    """ num_unit_points
+
+    unit_points = Matrix{Float64}(undef, (num_unit_points, 3))
+
+    ultra_range_max = div.(super_multiplicity_ultra, 2) .* unit_multiplicity_super
+    ultra_range = range.(-ultra_range_max, ultra_range_max)
+
+    j = 1
+    for m1 in ultra_range[1]
+        for m2 in ultra_range[2]
+            for m3 in ultra_range[3]
+                unit_points[j, :] = begin
+                    unit_lattvecs[1, :] * m1 +
+                    unit_lattvecs[2, :] * m2 +
+                    unit_lattvecs[3, :] * m3
+                end
+
+                j += 1
+            end
+        end
+    end
+
+    return unit_points
+end
+
+"""
+    get_origin_ultraconnectors(
+        numbasisatoms::Int64,
+        unit_points::Matrix{Float64},
+        basisconnectors::Array{Float64})
+
+Calculate all vectors from the atoms in the unitcell at (0,0,0) to every
+atom in the ultracell (including self-distance).
+
+This is basically building `numbasisatoms` coordinate lists. In each
+`i`-th list are the vectors that point to all atoms in the ultracell. But
+each `i`-th list is not the same! They differ from each other because
+each list is calculated with the origin shifted into the `i`-th atom in the
+unitcell at (0,0,0)
+
+# Important
+
+  - It is assumed that unit_points and basisconnectors are given with
+    respect to the same (vector space) basis and have the same units
+"""
+function get_origin_ultraconnectors(
+    numbasisatoms::Int64,
+    unit_points::Matrix{Float64},
+    basisconnectors::Array{Float64},
+)
+
+    # Get the number of unit points
+    num_unit_points = size(unit_points)[1]
+
+    num_ultraconnectors = numbasisatoms^2 * num_unit_points
+
+    ultraconnectors = Array{Float64}(undef, (num_ultraconnectors, 3))
+
+    s = 1
+    for iat in 1:numbasisatoms
+        for jat in 1:numbasisatoms
+            for k in 1:num_unit_points
+                ultraconnectors[s, :] = unit_points[k, :] + basisconnectors[iat, jat, :]
+
+                s += 1
+            end
+        end
+    end
+
+    return ultraconnectors
 end
 
 # End of module Phonon
