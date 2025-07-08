@@ -327,5 +327,13 @@ function get_origin_ultraconnectors(
     return ultraconnectors
 end
 
+function build_weight_maps()
+
+    # Maybe build the weight maps as if the ultraconnectors really are 
+    # `numbasisatoms` lists of coordinates. So one map per list of 
+    # coordinates!
+
+end
+
 # End of module Phonon
 end
