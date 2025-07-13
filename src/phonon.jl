@@ -43,7 +43,7 @@ the tensor is defined.
 
   - G. J. Ackland et. al. 1997 "Practical methods in ab initio lattice dynamics"
 """
-function enforce_acoustic_sum_rule!(ifc2_tensor::Array{Float64})
+function enforce_acoustic_sum_rule!(ifc2_tensor::Array{Float64,7})
     # Grab the number of atoms from the shape
     nat = size(ifc2_tensor)[3]
 
@@ -116,9 +116,11 @@ function build_basisconnectors(numbasisatoms::Int64, basis::Matrix{Float64})
     end
 
     # Connectors are the difference between the dublicate and the 
-    # "transpose" (as for a matrix with vector-elements) of the dublicate 
-    basisconnectors = basis_dublicate - permutedims(basis_dublicate, (2, 1, 3))
+    # "transpose" (as for a matrix with vector-elements) of the dublicate
+    basisconnectors = permutedims(basis_dublicate, (2, 1, 3)) - basis_dublicate
 
+    # basisconnectors[i,j,:] will give the vector FROM atom j TO atom i. 
+    # This follows the ordering of how you'd compute the vectors by hand
     return basisconnectors
 end
 
@@ -173,9 +175,8 @@ function build_supercell_points(
     Logging.@info "Phonon.build_supercell_positions: The number of supercell point is" num_supercell_points
     # Saving the supercell positions in the ultracell
     super_points = Matrix{Float64}(undef, (num_supercell_points, 3))
-    # Saving the distance of the bisector between every supercell position 
-    # and the origin
-    super_bisector_dist = Vector{Float64}(undef, num_supercell_points)
+    # Saving the SQUARED distance between supercell positions and origin
+    super_point_sqmods = Vector{Float64}(undef, num_supercell_points)
 
     # In Quantum Espresso ultra_range_max is fixed to 2
     ultra_range_max = div.(super_multiplicity_ultra, 2)
@@ -192,8 +193,9 @@ function build_supercell_points(
             for m3 in ultra_range[3]
                 # IMPORTANT: in the Quantum Espresso and elphbolt the 
                 # origin is skipped at this step here. I want to keep the 
-                # origin so it is more verbose (or direct whatever) to skip 
-                # it later on and not hidden inside the data structure
+                # origin so it is more verbose (or direct, what have you) 
+                # to skip it later on and not hidden inside the data 
+                # structure
 
                 super_points[j, :] = begin
                     super_lattvecs[1, :] * m1 +
@@ -201,16 +203,14 @@ function build_supercell_points(
                     super_lattvecs[3, :] * m3
                 end
 
-                super_bisector_dist[j] = begin
-                    0.5 * transpose(super_points[j, :]) * super_points[j, :]
-                end
+                super_point_sqmods[j] = transpose(super_points[j, :]) * super_points[j, :]
 
                 j += 1
             end
         end
     end
 
-    return super_points, super_bisector_dist
+    return super_points, super_point_sqmods
 end
 
 """
@@ -259,6 +259,7 @@ function build_unitcell_points(
 
     unit_points = Matrix{Float64}(undef, (num_unit_points, 3))
 
+    # Same concept from Phonon.build_supercell_points()
     ultra_range_max = div.(super_multiplicity_ultra, 2) .* unit_multiplicity_super
     ultra_range = range.(-ultra_range_max, ultra_range_max)
 
@@ -281,7 +282,7 @@ function build_unitcell_points(
 end
 
 """
-    get_origin_ultraconnectors(
+    get_shiftercons(
         numbasisatoms::Int64,
         unit_points::Matrix{Float64},
         basisconnectors::Array{Float64})
@@ -300,36 +301,93 @@ unitcell at (0,0,0)
   - It is assumed that unit_points and basisconnectors are given with
     respect to the same (vector space) basis and have the same units
 """
-function get_origin_ultraconnectors(
+function get_shiftercons(
     numbasisatoms::Int64,
     unit_points::Matrix{Float64},
-    basisconnectors::Array{Float64},
+    basisconnectors::Array{Float64,3},
 )
 
     # Get the number of unit points
     num_unit_points = size(unit_points)[1]
 
-    num_ultraconnectors = numbasisatoms^2 * num_unit_points
+    # The number of shiftercons is simple to calculate if you think about 
+    # how many elements there are in the above mentioned coordinate 
+    # lists. We shift one atom from the (0,0,0)-unitcell into the 
+    # origin and calculate all vectors pointing from this new origin to 
+    # every other atom in the ultracell. So each coordinate list has
+    # `numbasisatoms * num_unit_points` elements and there are 
+    # `numbasisatoms` coordinate list.
+    num_shiftercons = numbasisatoms^2 * num_unit_points
+    shiftercons = Array{Float64}(undef, (num_unit_points, numbasisatoms, numbasisatoms, 3))
 
-    ultraconnectors = Array{Float64}(undef, (num_ultraconnectors, 3))
-
-    s = 1
+    # Put atom iat from (0,0,0) into the origin
     for iat in 1:numbasisatoms
         for jat in 1:numbasisatoms
-            for k in 1:num_unit_points
-                ultraconnectors[s, :] = unit_points[k, :] + basisconnectors[iat, jat, :]
-
-                s += 1
+            for unit_addr in 1:num_unit_points
+                # Compute the vector from atom iat to atom jat in some 
+                # unitcell at unit_points[unit_addr]
+                shiftercons[unit_addr, jat, iat, :] =
+                    unit_points[unit_addr, :] + basisconnectors[jat, iat, :]
             end
         end
     end
 
-    return ultraconnectors
+    # shiftercons[:,:,c,:] will give the list of all vectors that point 
+    # from atom c in the (0,0,0)-unitcell to all other atoms in the 
+    # ultracell
+    return shiftercons
 end
 
-function build_weight_maps()
+function get_weight(
+    shiftercon::Vector{Float64},
+    super_points::Matrix{Float64},
+    super_point_sqmods::Vector{Float64},
+    epsilon = 1.0e-6,
+)
+    # Calculate the weight associated with a given shiftercon.
 
-    # Maybe build the weight maps as if the ultraconnectors really are 
+    # For the given `shiftercon`, count (`degen`) of how many 
+    # supercell-point bisector planes it is an element of. The 
+    # corresponding `weight` is then `1/degen`. If it is not an element of 
+    # ANY planes and always outside, `weight=0`. If it is not element of 
+    # ANY planes but always inside, `weight=1`.
+
+    # Get the number of super_points there are 
+    num_super_points = size(super_points)[1]
+
+    weight = 0.0
+    degen = 1
+    outside = false
+    for super_addr in 1:num_super_points
+        # Define numerical value that is checked against for whether the 
+        # shiftercon is element of a plane or else
+        check_on_plane = begin
+            transpose(shiftercon) * super_points[super_addr, :] -
+            0.5 * super_point_sqmods[super_addr]
+        end
+
+        # Check if outside such to decrease the number of checks
+        if check_on_plane > epsilon
+            outside = true
+            continue
+        elseif abs(check_on_plane) < epsilon
+            degen += 1
+        end
+    end
+
+    # If shiftercon was never outside of any plane then two possible 
+    # outcomes are left: It is or isn't part of any planes. 1/degen will 
+    # still yield 1 if it is not part of any planes.
+    if !outside
+        weight = 1 / degen
+    end
+
+    return weight
+end
+
+function get_weight_maps()
+
+    # Maybe build the weight maps as if the shiftercons really are 
     # `numbasisatoms` lists of coordinates. So one map per list of 
     # coordinates!
 
