@@ -125,7 +125,7 @@ function build_basisconnectors(numbasisatoms::Int64, basis::Matrix{Float64})
 end
 
 """
-    build_supercell_positions(
+    build_supercell_points(
         unit_multiplicity_super::Vector{Int64},
         super_multiplicity_ultra::Vector{Int64},
         unit_lattvecs::Matrix{Float64})
@@ -358,7 +358,9 @@ half space (outside) or if it is an element of the dividing plane.
   - `weight=1/degen+1` if P is considered as an element of `degen` planes
 
 In the third case `1/weight` corresponds to the number of
-translationally equivalent points to P
+translationally equivalent points to P. The restrictions ANY and ALL in
+cases one and two cause to restrict the whole treatment to a Wigner-Seitz
+cell around the origin built with the `super_points`.
 """
 function get_weight(
     shiftercon::Vector{Float64},
@@ -374,7 +376,7 @@ function get_weight(
     degen = 1
     for super_addr in 1:num_super_points
         # The origin will always fulfill the third case from above so we 
-        # skip is here. Clear and Simple lol
+        # skip is here. This is also mentioned in build_supercell_points()
         if iszero(super_points[super_addr, :])
             continue
         end
@@ -414,10 +416,8 @@ end
 
 function get_weight_maps()
 
-    # Maybe build the weight maps as if the shiftercons really are 
-    # `numbasisatoms` lists of coordinates. So one map per list of 
-    # coordinates!
-
+    # This function will be the result of applying the get_weight-function 
+    # to all shiftercons from the get_shiftercons-function.
 end
 
 # End of module Phonon
