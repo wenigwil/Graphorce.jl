@@ -15,7 +15,7 @@ numbasisatoms = size(basis)[1]
 
 basisconnectors = Phonon.build_basisconnectors(numbasisatoms, basis)
 
-super_points, super_sqmods = Phonon.build_unitcell_points(unit_mult, super_mult, lattvecs)
+super_points, super_sqmods = Phonon.build_supercell_points(unit_mult, super_mult, lattvecs)
 unit_points = Phonon.build_unitcell_points(unit_mult, super_mult, lattvecs)
 
 shiftercons = Phonon.get_shiftercons(numbasisatoms, unit_points, basisconnectors)

@@ -338,50 +338,77 @@ function get_shiftercons(
     return shiftercons
 end
 
+"""
+    get_weight(
+        shiftercon::Vector{Float64},
+        super_points::Matrix{Float64},
+        super_point_sqmods::Vector{Float64};
+        epsilon::Float64 = 1.0e-6)
+
+Calculate the weight associated to a given shiftercon.
+
+`shiftercon` points from the origin of the ultracell to some point P.
+All bisector planes that can be generated from the `super_points` are
+checked against a condition for P. That is whether point P is located
+in the half space that contains the origin (inside), in the other
+half space (outside) or if it is an element of the dividing plane.
+
+  - `weight=0` if point P is considered outside ANY bisector plane
+  - `weight=1` if point P is considered inside ALL bisector planes
+  - `weight=1/degen+1` if P is considered as an element of `degen` planes
+
+In the third case `1/weight` corresponds to the number of
+translationally equivalent points to P
+"""
 function get_weight(
     shiftercon::Vector{Float64},
     super_points::Matrix{Float64},
-    super_point_sqmods::Vector{Float64},
-    epsilon = 1.0e-6,
+    super_point_sqmods::Vector{Float64};
+    epsilon::Float64 = 1.0e-6,
 )
-    # Calculate the weight associated with a given shiftercon.
-
-    # For the given `shiftercon`, count (`degen`) of how many 
-    # supercell-point bisector planes it is an element of. The 
-    # corresponding `weight` is then `1/degen`. If it is not an element of 
-    # ANY planes and always outside, `weight=0`. If it is not element of 
-    # ANY planes but always inside, `weight=1`.
 
     # Get the number of super_points there are 
     num_super_points = size(super_points)[1]
 
     weight = 0.0
     degen = 1
-    outside = false
     for super_addr in 1:num_super_points
+        # The origin will always fulfill the third case from above so we 
+        # skip is here. Clear and Simple lol
+        if iszero(super_points[super_addr, :])
+            continue
+        end
+
         # Define numerical value that is checked against for whether the 
-        # shiftercon is element of a plane or else
+        # shiftercon is element of a plane or else.
         check_on_plane = begin
             transpose(shiftercon) * super_points[super_addr, :] -
             0.5 * super_point_sqmods[super_addr]
         end
 
-        # Check if outside such to decrease the number of checks
+        # Check whether shiftercon points outside of ANY bisector plane. If 
+        # so we immediatly return with weight=0
         if check_on_plane > epsilon
-            outside = true
-            continue
-        elseif abs(check_on_plane) < epsilon
+            return weight
+        end
+
+        # Check whether shiftercon is element of a plane.
+        if abs(check_on_plane) < epsilon
+            println(
+                shiftercon,
+                " is element of plane-generating point ",
+                super_points[super_addr, :],
+            )
             degen += 1
         end
+
+        # Checking against whether shiftercon is considered inside of ALL 
+        # bisector half-spaces is not necessary as this is contained in the 
+        # case for no incrementation in degen
     end
 
-    # If shiftercon was never outside of any plane then two possible 
-    # outcomes are left: It is or isn't part of any planes. 1/degen will 
-    # still yield 1 if it is not part of any planes.
-    if !outside
-        weight = 1 / degen
-    end
-
+    # This will still return 1 if shiftercon is inside ALL half spaces
+    weight = 1 / degen
     return weight
 end
 
