@@ -20,7 +20,7 @@ include("./parsers.jl")
 From this struct we will draw all the data we need to perform a calculation
 """
 struct HarmonicScaffolding
-    mass_prefactor::Array{Float64}
+    # mass_prefactor::Array{Float64}
 
     # function HarmonicScaffolding(
     #     ebdata::Parsers.ebInputData,
@@ -106,7 +106,7 @@ function build_basisconnectors(numbasisatoms::Int64, basis::Matrix{Float64})
 
     # Build square (numatoms x numatoms)-matrix of vectors such that every 
     # row consists of all basis vectors of all basisatoms
-    basis_dublicate = Array{Float64}(undef, (numbasisatoms, numbasisatoms, 3))
+    basis_dublicate = Array{Float64,3}(undef, (numbasisatoms, numbasisatoms, 3))
 
     # Fill the first row
     basis_dublicate[1, :, :] = basis[:, :]
@@ -281,6 +281,31 @@ function build_unitcell_points(
     return unit_points
 end
 
+function get_demux_unit_addr(
+    super_multiplicity_ultra::Vector{Int64},
+    unit_multiplicity_super::Vector{Int64},
+)
+    num_unit_points = begin
+        prod(super_multiplicity_ultra .* unit_multiplicity_super .+ 1)
+    end
+
+    demux_unit_addr = Matrix{Int64}(undef, (num_unit_points, 3))
+    ultra_range_max = div.(super_multiplicity_ultra, 2) .* unit_multiplicity_super
+    ultra_range = range.(-ultra_range_max, ultra_range_max)
+
+    j = 1
+    for m1 in ultra_range[1]
+        for m2 in ultra_range[2]
+            for m3 in ultra_range[3]
+                demux_unit_addr[j, :] = [m1, m2, m3]
+                j += 1
+            end
+        end
+    end
+
+    return demux_unit_addr
+end
+
 """
     get_shiftercons(
         numbasisatoms::Int64,
@@ -318,7 +343,8 @@ function get_shiftercons(
     # `numbasisatoms * num_unit_points` elements and there are 
     # `numbasisatoms` coordinate list.
     # num_shiftercons = numbasisatoms^2 * num_unit_points
-    shiftercons = Array{Float64}(undef, (num_unit_points, numbasisatoms, numbasisatoms, 3))
+    shiftercons =
+        Array{Float64,4}(undef, (num_unit_points, numbasisatoms, numbasisatoms, 3))
 
     # Put atom iat from (0,0,0) into the origin
     for iat in 1:numbasisatoms
@@ -341,7 +367,7 @@ function get_shiftercons(
 end
 
 """
-    get_weight(
+    parlinski_weight(
         shiftercon::Vector{Float64},
         super_points::Matrix{Float64},
         super_point_sqmods::Vector{Float64};
@@ -369,12 +395,12 @@ cell around the origin built with the `super_points`.
   - K. Parlinski 1999 "Calculation of the Phonon Dispersion Curves by the Direct Method"
   - K. Parlinski et. al. 1997 "First-Principles Determination of the Soft Mode in Cubic ZrO2"
 """
-function get_weight(
+function parlinski_weight(
     shiftercon::Vector{Float64},
     super_points::Matrix{Float64},
     super_point_sqmods::Vector{Float64};
     epsilon::Float64 = 1.0e-6,
-)
+)::Float64
 
     # Get the number of super_points there are 
     num_super_points = size(super_points)[1]
@@ -405,11 +431,11 @@ function get_weight(
 
         # Check whether shiftercon is element of a plane.
         if abs(check_on_plane) < epsilon
-            println(
-                shiftercon,
-                " is element of plane-generating point ",
-                super_points[super_addr, :],
-            )
+            # println(
+            #     shiftercon,
+            #     " is element of plane-generating point ",
+            #     super_points[super_addr, :],
+            # )
             degen += 1
         end
 
@@ -423,12 +449,33 @@ function get_weight(
     return weight
 end
 
-function get_weight_map()
+function get_weight_map(
+    shiftercons::Array{Float64,4},
+    super_points::Matrix{Float64},
+    super_point_sqmods::Vector{Float64},
+)
+    # This function will be the result of applying the get_weight-function
+    # to all shiftercons from the get_shiftercons-function and saving it 
+    # into an array
 
-    # This function will be the result of applying the get_weight-function 
-    # to all shiftercons from the get_shiftercons-function. and 
-    # saving it into an array
+    # Get the number of unit_points
+    num_unit_points, numbasisatoms = size(shiftercons)[1:2]
 
+    weight_map = Array{Float64,3}(undef, (num_unit_points, numbasisatoms, numbasisatoms))
+
+    for iat in 1:numbasisatoms
+        for jat in 1:numbasisatoms
+            for unit_addr in 1:num_unit_points
+                weight_map[unit_addr, jat, iat] = parlinski_weight(
+                    shiftercons[unit_addr, jat, iat, :],
+                    super_points,
+                    super_point_sqmods,
+                )
+            end
+        end
+    end
+
+    return weight_map
 end
 
 # End of module Phonon

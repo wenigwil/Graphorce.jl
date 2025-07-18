@@ -10,7 +10,7 @@ ifc2 = qedata.properties["ifc2"]
 super_mult = [4, 4, 4]
 unit_mult = [2, 2, 2]
 lattvecs = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0]
-basis = [0.5 0.5 0.5; 0.0 0.0 0.0]
+basis = [0.0 0.0 0.0; 0.6 0.6 0.6]
 numbasisatoms = size(basis)[1]
 
 basisconnectors = Phonon.build_basisconnectors(numbasisatoms, basis)
@@ -20,6 +20,23 @@ unit_points = Phonon.build_unitcell_points(unit_mult, super_mult, lattvecs)
 
 shiftercons = Phonon.get_shiftercons(numbasisatoms, unit_points, basisconnectors)
 
-# for i in 1:size(shiftercons)[1]
-#     println(shiftercons[i, 1], " ", shiftercons[i, 2], " ", shiftercons[i, 3])
-# end
+weight_map = Phonon.get_weight_map(shiftercons, super_points, super_sqmods)
+demux_unit_addr = Phonon.get_demux_unit_addr(super_mult, unit_mult)
+
+# Printing non-zero 
+for iat in 1:numbasisatoms
+    for jat in 1:numbasisatoms
+        for unit_addr in 1:size(unit_points)[1]
+            if !iszero(weight_map[unit_addr, jat, iat])
+                println(
+                    "Non-Zero Element at index ",
+                    (unit_addr, jat, iat),
+                    ". With value ",
+                    1 / weight_map[unit_addr, jat, iat],
+                    ". Demuxed Index is ",
+                    (demux_unit_addr[unit_addr, :], jat, iat),
+                )
+            end
+        end
+    end
+end
