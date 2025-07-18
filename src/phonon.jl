@@ -317,7 +317,7 @@ function get_shiftercons(
     # every other atom in the ultracell. So each coordinate list has
     # `numbasisatoms * num_unit_points` elements and there are 
     # `numbasisatoms` coordinate list.
-    num_shiftercons = numbasisatoms^2 * num_unit_points
+    # num_shiftercons = numbasisatoms^2 * num_unit_points
     shiftercons = Array{Float64}(undef, (num_unit_points, numbasisatoms, numbasisatoms, 3))
 
     # Put atom iat from (0,0,0) into the origin
@@ -335,6 +335,8 @@ function get_shiftercons(
     # shiftercons[:,:,c,:] will give the list of all vectors that point 
     # from atom c in the (0,0,0)-unitcell to all other atoms in the 
     # ultracell
+    # shiftercons[i,j,k,:] will give the vector pointing from atom k out of 
+    # the origin unitcell to atom j in unitcell i
     return shiftercons
 end
 
@@ -355,12 +357,17 @@ half space (outside) or if it is an element of the dividing plane.
 
   - `weight=0` if point P is considered outside ANY bisector plane
   - `weight=1` if point P is considered inside ALL bisector planes
-  - `weight=1/degen+1` if P is considered as an element of `degen` planes
+  - `weight=1/(degen+1)` if P is considered as an element of `degen` planes
 
 In the third case `1/weight` corresponds to the number of
 translationally equivalent points to P. The restrictions ANY and ALL in
 cases one and two cause to restrict the whole treatment to a Wigner-Seitz
 cell around the origin built with the `super_points`.
+
+# References
+
+  - K. Parlinski 1999 "Calculation of the Phonon Dispersion Curves by the Direct Method"
+  - K. Parlinski et. al. 1997 "First-Principles Determination of the Soft Mode in Cubic ZrO2"
 """
 function get_weight(
     shiftercon::Vector{Float64},
@@ -390,6 +397,8 @@ function get_weight(
 
         # Check whether shiftercon points outside of ANY bisector plane. If 
         # so we immediatly return with weight=0
+        # This discards all weight calculations beyond the Wigner-Seitz 
+        # cell at the origin for the superpoints 
         if check_on_plane > epsilon
             return weight
         end
@@ -409,15 +418,17 @@ function get_weight(
         # case for no incrementation in degen
     end
 
-    # This will still return 1 if shiftercon is inside ALL half spaces
+    # This stills return 1 if given shiftercon is inside ALL half spaces
     weight = 1 / degen
     return weight
 end
 
-function get_weight_maps()
+function get_weight_map()
 
     # This function will be the result of applying the get_weight-function 
-    # to all shiftercons from the get_shiftercons-function.
+    # to all shiftercons from the get_shiftercons-function. and 
+    # saving it into an array
+
 end
 
 # End of module Phonon
