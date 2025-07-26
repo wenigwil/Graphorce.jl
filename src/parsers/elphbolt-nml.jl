@@ -1,5 +1,3 @@
-import Logging
-
 struct ebInputData
     input_file::AbstractString
     allocations::AbstractDict
@@ -25,17 +23,17 @@ struct ebInputData
 
         # Initialize the allocations namelist with the numelements and 
         # numatoms that have to be passed in any way
-        Logging.@info "Inner ebID-Constructor: Initializing empty allocations dictionary..."
+        Logging.@debug "Inner ebID-Constructor: Initializing empty allocations dictionary..."
         init_allocations!(allocations, numelements, numatoms)
 
         # Initialize the crystal_info namelist. Quantities in this namelist 
         # depend strictly on numelements and numatoms
-        Logging.@info "Inner ebID-Constructor: Initializing empty crystal_info dictionary..."
+        Logging.@debug "Inner ebID-Constructor: Initializing empty crystal_info dictionary..."
         init_crystal_info!(crystal_info, numelements, numatoms)
 
         # Initialize the numerics namelist. This namelist does not depend 
         # on numelements or numatoms
-        Logging.@info "Inner ebID-Constructor: Initializing empty numerics dictionary..."
+        Logging.@debug "Inner ebID-Constructor: Initializing empty numerics dictionary..."
         init_numerics!(numerics)
 
         # Construct the ebInputData-Object
@@ -100,7 +98,7 @@ function ebInputData(input_file_path::AbstractString)
     numelements = 0
     numatoms = 0
     # Loop through the part of the file that corresponds to the allocations
-    Logging.@info "Outer ebID-Constructor: Starting to read the allocations-namelist to create an empty ebInputData-object... "
+    Logging.@debug "Outer ebID-Constructor: Starting to read the allocations-namelist to create an empty ebInputData-object... "
     for line in file_vector[cut_mask .== "allocations"]
         nml_attr = split(split(line, "=")[1])[1]
         nml_val = parse(Int64, split(split(line, "=")[2])[1])
@@ -141,7 +139,7 @@ function read_namelist_into_dict!(
     nml_header::String,
     dict::AbstractDict,
 )
-    Logging.@info "Outer ebID-Constructor: Starting to read the $(nml_header)-namelist into an ebID-object... "
+    Logging.@debug "Outer ebID-Constructor: Starting to read the $(nml_header)-namelist into an ebID-object... "
     for line in file_vector[addr_mask .== nml_header]
         # Crudely disect the line into attribute, (index, )value
         disect = disect_nml_line(line)

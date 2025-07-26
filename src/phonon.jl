@@ -10,8 +10,6 @@ This file contains the inner workings for performing calculations with
 force constants obtained.
 =#
 
-import Logging
-
 """
     enforce_acoustic_sum_rule!(ifc2_tensor)
 

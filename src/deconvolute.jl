@@ -1,5 +1,3 @@
-module Deconvolution
-
 struct Parlinski
     weightmap::Array{Float64,3}
 
@@ -472,7 +470,4 @@ function fold_to_qe_origin(
     end
 
     return folds
-end
-
-# End of Deconvolution Module
 end

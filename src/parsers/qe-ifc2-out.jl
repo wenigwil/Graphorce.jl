@@ -1,16 +1,14 @@
-import Logging
-
 """
-    dfpt_qeOutputData(output_file_path::String)
+    qeIfc2Output(output_file_path::String)
 
 Type for the output data of a Quantum Espresso DFPT
 calculation that is read-in from an output file at output_file_path.
 """
-struct dfpt_qeOutputData
+struct qeIfc2Output
     output_file::AbstractString
     properties::Dict
 
-    function dfpt_qeOutputData(output_file_path::String)
+    function qeIfc2Output(output_file_path::String)
         # Check that file exists
         if isfile(output_file_path) == false
             Logging.@error "Inner dfpt_qeOD-constructor: Given path is not a regular file!"
