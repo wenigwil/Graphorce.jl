@@ -1,3 +1,23 @@
+#=      _       ___                       _   
+   ___ | |__   |_ _| _ __   _ __   _   _ | |_ 
+  / _ \| '_ \   | | | '_ \ | '_ \ | | | || __|
+ |  __/| |_) |  | | | | | || |_) || |_| || |_ 
+  \___||_.__/  |___||_| |_|| .__/  \__,_| \__|
+                           |_|               
+================================================================================
+This file contains a non-exhaustive parser for the input-file of elphbolt. This 
+input file is given in the namelist format with the name input.nml. This file 
+contains a collection of helper functions as well as a struct whose inner and 
+outer constructor ties together those functions. The inner constructor mainly 
+initializes empty dictionaries that are filled with the data from the input.nml
+in the outer constructor.
+
+More information about elphbolt can be found at github.com/nakib/elphbolt.
+
+DISCLAIMER: For now only the allocations-, crystal_info- and numerics-namelists
+            are implemented.
+=#
+
 struct ebInputData
     input_file::AbstractString
     allocations::AbstractDict
@@ -11,7 +31,7 @@ struct ebInputData
         # with dimensions that depend on the numelements and numatoms
         numelements::Integer,
         numatoms::Integer,
-        # TODO: For know this struct implements the allocations and 
+        # TODO: For now this struct implements the allocations and 
         # crystal_info namelists from elphbolt. crystal_info depends in 
         # at least 6 quantities on numelements or numatoms.
         # The electrons namelist depends on numconc and numT! Implement 

@@ -1,14 +1,3 @@
-#=
-  ____   _                                 
- |  _ \ | |__    ___   _ __    ___   _ __  
- | |_) || '_ \  / _ \ | '_ \  / _ \ | '_ \ 
- |  __/ | | | || (_) || | | || (_) || | | |
- |_|    |_| |_| \___/ |_| |_| \___/ |_| |_|
-===========================================
-
-This file contains the inner workings for performing calculations with
-force constants obtained.
-=#
 
 """
     enforce_acoustic_sum_rule!(ifc2_tensor)

@@ -1,10 +1,29 @@
 struct Parlinski
     weightmap::Array{Float64,3}
 
-    function Parlinski(
-        # ebdata::ebInputData,
-        super_multiplicity_ultra = [4, 4, 4],
-    ) end
+    function Parlinski(ebdata::ebInputData; super_multiplicity_ultra = [4, 4, 4])
+        numbasisatoms = ebdata.allocations["numatoms"]
+        # numbasisatomsx3 basis in fractional coordiantes
+        basis_frac = transpose(ebdata.crystal_info["basis"])
+        # lattice vectors given as transpose([a1 a2 a3]) in Bohr
+        lattvecs = transpose(ebdata.crystal_info["lattvecs"]) / a0_nm
+        # Get the basis in cartesian coords and convert to Bohr
+        # Will give a numbasisatomsx3 matrix
+        basis_cart = (basis_frac * lattvecs)
+        basiscons_cart = build_basisconnectors(numbasisatoms, basis_cart)
+
+        unit_multiplicity_super = ebdata.numerics["qmesh"]
+        # Get the unitcell points in cartesian coords in units of Bohr
+        unit_points_cart = build_unitcell_points(
+            unit_multiplicity_super,
+            super_multiplicity_ultra,
+            lattvecs,
+        )
+
+        # unit_points and basiscons must be in the same space and units
+        shiftercons =
+            get_shiftercons(numbasisatoms, unit_points_cart, basiscons_cart)
+    end
 end
 
 """
@@ -16,6 +35,18 @@ The tensor that is built is anti-symmetric in the first two indices and
 thus contains zero-vectors on its diagonal. The `(i,j)`-th element of
 `basisconnectors` contains the difference of `basis[i]` and `basis[j]` with
 the `(j,i)`-th element being the negative of the former mentioned.
+
+# Arguments
+
+  - `numbasisatoms::Int64`: Number of atoms in the crystal basis
+  - `basis::Matrix{Float64}`: Collection of basis vectors of atoms in the
+    unitcell. Size should be (`numbasis`, 3) with the basis vectors forming
+    the rows of `basis`.
+
+# Output
+
+  - `basisconnectors::Array{Float64,3}`: Element `[i,j,:]` will yield the vector
+    from atom j to atom i, where both atoms are inside of the same unitcell.
 """
 function build_basisconnectors(numbasisatoms::Int64, basis::Matrix{Float64})
 
@@ -23,9 +54,8 @@ function build_basisconnectors(numbasisatoms::Int64, basis::Matrix{Float64})
     # row consists of all basis vectors of all basisatoms
     basis_dublicate = Array{Float64,3}(undef, (numbasisatoms, numbasisatoms, 3))
 
-    # Fill the first row
     basis_dublicate[1, :, :] = basis[:, :]
-    # Dublicate the first row to the other
+    # Dublicate the first row to the other rows
     for j in 1:numbasisatoms
         basis_dublicate[j, :, :] = basis_dublicate[1, :, :]
     end
@@ -34,8 +64,6 @@ function build_basisconnectors(numbasisatoms::Int64, basis::Matrix{Float64})
     # "transpose" (as for a matrix with vector-elements) of the dublicate
     basisconnectors = permutedims(basis_dublicate, (2, 1, 3)) - basis_dublicate
 
-    # basisconnectors[i,j,:] will give the vector FROM atom j TO atom i. 
-    # This follows the ordering of how you'd compute the vectors by hand
     return basisconnectors
 end
 
@@ -138,13 +166,24 @@ end
 Build a finite lattice of the size of an ultracell specified by the
 supercell multiplicity. The lattic is unitcell periodic.
 
-# Important
+# Arguments
 
-  - For now `super_multiplicity_ultra` must an even number
-  - It is assumed that the `unit_lattvecs` column (2nd index) goes through the
-    cartesian coordinates!
-  - It is assumed that the orderings in the `unit_multiplicity_super` and
-    `unit_lattvecs` align
+  - `unit_multiplicity_super::Vector{Int64}`: Multiplicities of unitcells inside
+    of a supercell in each of the lattice vector directions. The `j`-th element
+    corresponds to the multiplicity in the lattice vector direction given by
+    `unit_lattvecs[j,:]`.
+  - `super_multiplicity_ultra::Vector{Int64}`: Multiplicities of supercells inside
+    of the ultracell in positive lattice vector directions. Should coincide with
+    the multiplicities supplied in `build_supercell_points()`. Every element must
+    be even and may not be smaller than 2.
+  - `unit_lattvecs::Matrix{Float64}`: Three dimensional lattice vectors. The
+    `j`-th lattice vector corresponds to `unit_lattvecs[j,:]`.
+
+# Output
+
+  - `unit_points::Matrix{Float64}`: A list of all unitcell points inside the
+    ultracell that is build up of supercells from `build_supercell_points()`. The
+    points are given in the same units as `unit_lattvecs`.
 """
 function build_unitcell_points(
     unit_multiplicity_super::Vector{Int64},
@@ -169,8 +208,8 @@ function build_unitcell_points(
     num_unit_points = begin
         prod(super_multiplicity_ultra .* unit_multiplicity_super .+ 1)
     end
-    Logging.@info """
-        Phonons.build_unitcell_points: The number of unitcell points is
+    Logging.@debug """
+        build_unitcell_points: The number of unitcell points is
     """ num_unit_points
 
     unit_points = Matrix{Float64}(undef, (num_unit_points, 3))
@@ -237,10 +276,20 @@ each `i`-th list is not the same! They differ from each other because
 each list is calculated with the origin shifted into the `i`-th atom in the
 unitcell at (0,0,0)
 
-# Important
+# Arguments
 
-  - It is assumed that unit_points and basisconnectors are given with
-    respect to the same (vector space) basis and have the same units
+  - `numbasisatoms::Int64`: Number of atoms in one unitcell
+  - `unit_points::Matrix{Float64}`: Output from `build_unitcell_points()`.
+    Should be in same vector space basis and units as `basisconnectors`
+  - `basisconnectors::Array{Float,3}`: Output from `build_basisconnectors()`.
+    Should be in the same vector space basis and units as `unit_points`
+
+# Output
+
+  - `shiftercons::Array{Float64,4}`: `shiftercons[k,j,i,:]` will yield the
+    vector pointing from atom `i` out of the origin unitcell to atom `j` in
+    unitcell `k`. `k` is a muxed index that can be demuxed with the loops
+    from `build_unitcell_points()`.
 """
 function get_shiftercons(
     numbasisatoms::Int64,
@@ -274,11 +323,6 @@ function get_shiftercons(
         end
     end
 
-    # shiftercons[:,:,c,:] will give the list of all vectors that point 
-    # from atom c in the (0,0,0)-unitcell to all other atoms in the 
-    # ultracell
-    # shiftercons[i,j,k,:] will give the vector pointing from atom k out of 
-    # the origin unitcell to atom j in unitcell i
     return shiftercons
 end
 
@@ -372,7 +416,7 @@ end
         super_point_sqmods::Vector{Float64},
     )
 
-Apply the `calc_parlinski_weight`-function to all `shiftercons` built by
+Calculate weights with the `calc_parlinski_weight`-function for all `shiftercons` built by
 the `get_shiftercons`-function and save it into an array.
 """
 function get_weight_map(

@@ -1,9 +1,20 @@
-"""
-    qeIfc2Output(output_file_path::String)
+#=                     ___          _                  _   
+   __ _   ___         / _ \  _   _ | |_  _ __   _   _ | |_ 
+  / _` | / _ \ _____ | | | || | | || __|| '_ \ | | | || __|
+ | (_| ||  __/|_____|| |_| || |_| || |_ | |_) || |_| || |_ 
+  \__, | \___|        \___/  \__,_| \__|| .__/  \__,_| \__|
+     |_|                                |_|                
+================================================================================
+This file is the product of my first steps in Julia, so bare with me here, okay.
+Originally this file would've only consisted of a single function but I built the
+elphbolt-input parser afterwards and then adopted a similar structure here. The
+parser itself is practically a carbon copy from the one in elphbolt (at
+src/phonon.f90 subroutine read_ifc2). It reads the data from the output-file of
+quantum espresso after producing the interatomic force constants from a DFPT-
+calculation. The data is read line by line and afterwards shoved into a dictionary
+with similar keys to the ones used at the elphbolt-input parser.
+=#
 
-Type for the output data of a Quantum Espresso DFPT
-calculation that is read-in from an output file at output_file_path.
-"""
 struct qeIfc2Output
     output_file::AbstractString
     properties::Dict
