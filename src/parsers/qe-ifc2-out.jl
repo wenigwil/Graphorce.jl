@@ -22,7 +22,9 @@ struct qeIfc2Output
     function qeIfc2Output(output_file_path::String)
         # Check that file exists
         if isfile(output_file_path) == false
-            Logging.@error "Inner dfpt_qeOD-constructor: Given path is not a regular file!"
+            Logging.@error """
+           Inner dfpt_qeOD-constructor: Given path is not a regular file!
+           """ output_file_path
             return
         else
             Logging.@debug "Inner dfpt_qeOD-constructor: Given path is a regular file" output_file_path
