@@ -499,6 +499,16 @@ geg = gmax*4.0_r64*alpha
 ncell_g = int(sqrt(geg)/self%cell_g(:, 0)) + 1
 ~~~
 
+4. The usual loop over all atoms in all supercells in the ultra is done
+
+~~~fortran
+do iat = 1, nat
+   do jat = 1, nat
+      do m1 = -2*self%scell(1), 2*self%scell(1)
+         do m2 = -2*self%scell(2), 2*self%scell(2)
+            do m3 = -2*self%scell(3), 2*self%scell(3)
+~~~
+
 
 
 

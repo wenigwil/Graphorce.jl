@@ -1,3 +1,49 @@
+struct DynamicalMatrix
+    qpoints_cart::Vector{Float64}
+    mat::Array{ComplexF64,3}
+
+    function DynamicalMatrix(
+        qpoints_cryst::Vector{Float64},
+        lattvecs::Matrix{Float64},
+    )
+
+        # Lattvecs are given in nm we need the reclattvecs in bohr
+        # Reciprocal lattice vectors have units of 1/length such that a multiplication 
+        # with the Bohr-radius in nm will convert from 1/nm to 1/bohr
+        reclattvecs = transpose(calc_reciprocal_lattvecs(lattvecs) * a0_nm)
+
+
+
+
+        new()
+    end
+end
+
+"""
+    qpoints_cryst2cart(
+        qpoints_cryst::Matrix{Float64},
+        reclattvecs::Matrix{Float64})
+
+Convert a list of reciprocal lattice vectors given in crystal coordinates to ones
+that are given in cartesian coordinates with units of `reclattvecs`.
+
+# Arguments
+
+  - `qpoints_cryst::Matrix{Float64}`: A list of q-points given in crystal
+    coordinates. `qpoints_cryst[i,:]` should yield the `i`-th q-point in the list.
+  - `reclattvecs::Matrix{Float64}`: Reciprocal lattice vectors. `reclattvecs[i,:]`
+    will yield the `i`-th reciprocal lattice vector.
+"""
+function qpoints_cryst2cart(
+    qpoints_cryst::Matrix{Float64},
+    reclattvecs::Matrix{Float64},
+)
+    numqpoints = size(qpoints_cryst)[1]
+    qpoints_cart = zeros(Float64, (numqpoints, 3))
+    for iq in 1:numqpoints
+        qpoints_cart[iq, :] = reclattvecs * qpoints_cryst[iq, :]
+    end
+end
 
 """
     enforce_acoustic_sum_rule!(ifc2_tensor)

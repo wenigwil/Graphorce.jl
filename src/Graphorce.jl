@@ -12,6 +12,6 @@ export qeIfc2Output
 
 include("deconvolute.jl")
 
-# include("phonon.jl")
+include("phonon.jl")
 
 end # module Graphorce

@@ -1,3 +1,19 @@
+"""
+    calc_reciprocal_lattvecs(lattvecs::Matrix{Float64})
+
+Calculate the reciprocal lattice vectors from a collection of direct lattice vectors.
+
+# Arguments
+
+  - `lattvecs::Matrix{Float64}`: Collection of direct lattice vectors. `lattvecs[:,i]`
+    should yield the `i`-th lattice vector.
+
+# Output
+
+  - `reclattvecs::Matrix{Float64}`: Collection of reciprocal lattice vectors. The
+    vectors are stored rowwise like `lattvecs`. The vectors already contain a
+    prefactor of `2*pi`
+"""
 function calc_reciprocal_lattvecs(lattvecs::Matrix{Float64})
     reclattvecs = Matrix{Float64}(undef, (3, 3))
     for i in 1:3
