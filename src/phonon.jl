@@ -68,7 +68,32 @@ get a submatrix of the dynamical matrix.
     Ideally this will be a path based on the crystal symmetry. It is assumed that
     `qpoints_cart[i,:]` will yield the `i`-th q-point in the list.
 """
-function calc_fullq_dynmat_element(i::Int64, j::Int64, qpoints_cart::Matrix{Float64})
+function calc_fullq_dynmat_element(
+    mass_prefac_element::Float64,
+    unitpoints_qefrac_folded::Matrix{Float64},
+    unitpoints_cart::Matrix{Float64},
+    ifc2_slice::Array{Float64,3},
+    qpoints_cart::Matrix{Float64},
+    weightmap_slice::Vector{Float64},
+)
+    numqpoints = size(qpoints_cart, 1)
+    numunitpoints = size(unitpoints_cart, 1)
+
+    # Element of the dynmat for all qpoints
+    fullq_dynmat_element = zeros(Float64, numqpoints)
+
+    # Loop over all q-points
+    for iq in 1:numqpoints
+        for l in 1:numunitpoints
+            fullq_dynmat_element[iq] = begin
+                ifc2_slice[unitpoints_qefrac_folded[l, :]...] *
+                exp(im * qpoints_cart[iq, :] * unitpoints_cart[l, :]) *
+                weightmap_slice[l]
+            end
+        end
+    end
+
+    return mass_prefac_element * fullq_dynmat_element
 end
 
 """
@@ -151,9 +176,10 @@ end
 Build the mass prefactor that is needed in the computation of the
 dynamical matrix.
 
-The mass_prefactor is a matrix of size `(numbasisatoms,  numbasisatoms)`. Its `i`-th diagonal element is just the mass of
-`species[basisatom2species[i]]` which we will call `mass[i]` in this
-comment. Every other `(i,j)`-th element is `sqrt( mass[i] * mass[j] )`
+The mass_prefactor is a matrix of size `(numbasisatoms,  numbasisatoms)`. Its `i`-th
+diagonal element is just the mass of `species[basisatom2species[i]]` which we will
+call `mass[i]` in this comment. Every other `(i,j)`-th element is
+`sqrt( mass[i] * mass[j] )`
 """
 function build_mass_prefactor(
     numbasisatoms::Int64,
