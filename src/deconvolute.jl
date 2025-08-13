@@ -1,6 +1,7 @@
-struct DeconvUtils
+struct DeconvData
     weightmap::Array{Float64,3}
-    ifc2_2nd_atom_unitaddr::Array{Int64,4}
+    unitpoints_qefrac_folded::Array{Int64,4}
+    unitpoints_cart::Matrix{Float64}
 
     function DeconvUtils(ebdata::ebInputData; super_multiplicity_ultra = [4, 4, 4])
         numbasisatoms = ebdata.allocations["numatoms"]
@@ -14,15 +15,14 @@ struct DeconvUtils
 
         unit_multiplicity_super = ebdata.numerics["qmesh"]
         # Get the unitcell points in cartesian coords in units of Bohr
-        unit_points_cart = build_unitcell_points(
+        unitpoints_cart = build_unitcell_points(
             unit_multiplicity_super,
             super_multiplicity_ultra,
             lattvecs,
         )
 
         # unit_points and basiscons must be in the same space and units
-        shiftercons =
-            get_shiftercons(numbasisatoms, unit_points_cart, basiscons_cart)
+        shiftercons = get_shiftercons(numbasisatoms, unitpoints_cart, basiscons_cart)
         # super_sqmods stands for the squared modulus of super_points
         super_points, super_sqmods = build_supercell_points(
             unit_multiplicity_super,
@@ -36,13 +36,13 @@ struct DeconvUtils
             super_multiplicity_ultra,
         )
 
-        ifc2_2ndatom_unitaddr = get_ifc2_2nd_atom_unitcell_addr(
+        unitpoints_qefrac_folded = get_unitpoints_qefrac_folded(
             weightmap,
             unit_points_frac,
             unit_multiplicity_super,
         )
 
-        new(weightmap, ifc2_2ndatom_unitaddr)
+        new(weightmap, unitpoints_qefrac_folded, unitpoints_cart)
     end
 end
 
@@ -96,9 +96,9 @@ end
 Generate an ultracell by repetion of supercells, for which you build
 all positions to as well as the positions half length squared.
 
-The supercell is made up of a multiplicity of unitcells in each direction
-of `unit_lattvecs` with the origin at the a corner of the supercell. The
-ultracell has its origin at the center.
+The supercell is made up of a multiplicity of unitcells in each direction of
+`unit_lattvecs` with the origin at the a corner of the supercell. The ultracell has
+its origin at the center.
 
 # Arguments
 
@@ -109,8 +109,9 @@ ultracell has its origin at the center.
   - `super_multiplicity_ultra::Vector{Int64}`: `super_multiplicity_ultra[j]`
     corresponds to the number of supercells in the direction of
     `unit_lattvecs[j,:]` and `-unit_lattvecs[j,:]` so the number of supercells
-    along that direction is `2*super_multiplicity_ultra[j]`. Every element shall
-    be even and not smaller than 2.
+    that divide the `j`-th direction is `super_multiplicity_ultra[j]`. Every element
+    shall be even and not smaller than 2 to ensure the origin can be at the middle of
+    the cell.
   - `unit_lattvecs::Matrix{Float64}`: Three dimensional lattice vectors. The
     `j`-th lattice vector corresponds to `unit_lattvecs[j,:]`.
 
@@ -235,10 +236,9 @@ function build_unitcell_points(
     end
 
     # The number of unitcell points can be calculated as follows. In each 
-    # i-th lattvec direction there are super_mult[i]*unit_mult[i]+1 
-    # unitcell points because there super_mult[i]*unit_mult[i] cells in 
-    # that lattvec direction. For three directions the following gives the 
-    # number of unitcell points.
+    # i-th lattvec direction there are super_mult[i]*unit_mult[i]+1 unitcell points 
+    # because there are  super_mult[i]*unit_mult[i] cells in that lattvec direction. 
+    # For three directions the following gives the number of unitcell points.
     num_unit_points = begin
         prod(super_multiplicity_ultra .* unit_multiplicity_super .+ 1)
     end
@@ -248,7 +248,7 @@ function build_unitcell_points(
 
     unit_points = Matrix{Float64}(undef, (num_unit_points, 3))
 
-    # Same concept from Phonon.build_supercell_points()
+    # Same concept as in build_supercell_points()
     ultra_range_max = div.(super_multiplicity_ultra, 2) .* unit_multiplicity_super
     ultra_range = range.(-ultra_range_max, ultra_range_max)
 
@@ -307,7 +307,7 @@ function get_shiftercons(
 )
 
     # Get the number of unit points
-    num_unit_points = size(unit_points)[1]
+    num_unit_points = size(unit_points, 1)
 
     # The number of shiftercons is simple to calculate if you think about 
     # how many elements there are in the above mentioned coordinate 
@@ -381,7 +381,7 @@ function calc_parlinski_weight(
 )::Float64
 
     # Get the number of super_points there are 
-    num_super_points = size(super_points)[1]
+    num_super_points = size(super_points, 1)
 
     weight = 0.0
     degen = 1
@@ -500,7 +500,7 @@ function build_unitcell_points_frac(
 end
 
 """
-    get_ifc2_2nd_atom_unitcell_addr(
+    get_unitpoints_qefrac_folded(
         weight_map::Array{Float64,3},
         unit_points_frac::Matrix{Int64},
         unit_multiplicity_super::Vector{Int64})
@@ -508,13 +508,13 @@ end
 Fold all vectors in `unit_points_frac` back into the supercell in the origin and
 convert them to a 1-based numbering using `fold_to_qe_origin()`.
 
-With every shiftercon (see explanation a `get_shiftercons()`), for which a weight>=0
+With every shiftercon (see explanation at `get_shiftercons()`), for which a weight>=0
 was computed, we need to capture the unitcell point in fractional coordinates of the
 unshifted atom and fold that back into the origin-supercell. The folding is only
 happening if the non-shifted atom is located within a unitcell that is beyond the
 origin-supercell.
 """
-function get_ifc2_2nd_atom_unitcell_addr(
+function get_unitpoints_qefrac_folded(
     weight_map::Array{Float64,3},
     unit_points_frac::Matrix{Int64},
     unit_multiplicity_super::Vector{Int64},
@@ -547,9 +547,8 @@ Fold a unitcell point in fractional coordinates back into a unitcell point that
 is inside the supercell at the origin whilst converting to a 1-based (QE-like)
 coordinate system inside this supercell.
 
-If the unitcell-multiplicity in one direction was 6, then this
-function will map the unit point in that direction NOT onto the
-integer interval `[0,5]` but `[1,6]`!
+Example:If the unitcell-multiplicity in one direction was 6, then this function will
+map the unit point in that direction NOT onto the integer interval `[0,5]` but`[1,6]`
 
 # Arguments
 
@@ -562,7 +561,7 @@ integer interval `[0,5]` but `[1,6]`!
 # Output
 
   - `folds::Vector{Int64}`: `unit_point_frac` was the origin of a unitcell in the
-    ultracell in fractional coordinates that got folded back into the supercell
+    ultracell in fractional coordinates.This got folded back into the supercell
     at the origin. `folds` is the result from the folding process whose elements
     sattisfy `1<=folds[j]<=ums[j]` where `ums` is short for `unit_multiplicity_super`.
 """
@@ -576,7 +575,7 @@ function fold_to_qe_origin(
 
     for (i, folding) in enumerate(folds)
         # Smaller-than is just for safety but the mod-function of julia 
-        # should be strictly positive definite (not like fortran)
+        # should be strictly positive definite (not like Fortran)
         if folding <= 0
             folds[i] += unit_multiplicity_super[i]
         end
