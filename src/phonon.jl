@@ -51,22 +51,33 @@ function build_dynamical_matrix(
 end
 
 """
-For all given q-points calculate one term of the lattice sum for one submatrix of the
-dynamical matrix.
+Calculate one element of the dynamical tensor for all q-points.
 
-For one q-point the dynamical tensor is a rank-4 tensor indexed by two atom indeces
-τ,τ' (`iat` and `jat`) and two cartesian indeces α, α' (`ipol` and `jpol`). Solving
-for frequencies and vibration eigenvectors in one diagonalization per q-point
-requires to mux the indices τ and α into one index `idim` and τ' and α' analogously
-into `jdim` using `mux2to1()`. For a given q-point this converts the dynamical tensor
-(rank-4) into the dynamical matrix (rank-2). If we pick a q-point and fix τ and τ' we
-get a submatrix of the dynamical matrix.
+The dynamical tensor is a rank-5 tensor with two atomic indices τ, τ' (inclusive
+range 1 to `numatoms`), two cartesian indices α, α' (inclusive range 1 to 3) and one
+q-point index `iq` (inclusive range 1 to `numqpoints`). The tensor will be
+represented as a rank-3 tensor by muxing the two index-pairs τ, α and τ', α' into two
+indices `i` and `j`. For a specified `iq` we then get a square
+`3*numatoms`x`3*numatoms`-matrix of which one element for every `iq` from 1 to
+`numqpoints` will be computed.
 
 # Arguments
 
+  - `mass_prefac_element::Float64`: Element of the matrix computed by
+    `build_mass_prefactor()` specified by the atomic indices τ and τ'.
+  - `unitpoints_qefrac_folded::Matrix{Float64}`: Slice matrix of the output from
+    `get_unitpoints_qefrac_folded()` specified by fixing it's second and third index
+    to atomic indices τ' and τ.
+  - `unitpoints_cart::Matrix{Float64}`: Points of all unitcell origins withing the
+    ultracell in cartesian coordinates in units of Bohr.
+  - `ifc2_slice::Array{Float64,3}`: Slice of the rank-7 ifc2-tensor. Specified by
+    fixing its first four indices with α,α',τ and τ'. The leftover indices will accept
+    the `unitpoints_qefrac_folded`.
   - `qpoints_cart::Matrix{Float64}`: A list of q-points in cartesian coordinates.
     Ideally this will be a path based on the crystal symmetry. It is assumed that
     `qpoints_cart[i,:]` will yield the `i`-th q-point in the list.
+  - `weightmap_slice::Vector{Float64}`: Slice of the weightmap output by
+    `get_weight_map()` specified by fixing its second and third index to τ' and τ
 """
 function calc_fullq_dynmat_element(
     mass_prefac_element::Float64,
