@@ -121,15 +121,19 @@ function calc_fullq_dynmat_element(
 
     # Loop over all q-points
     for iq in 1:numqpoints
+        tmp = 0
         for l in 1:numunitpoints
             if weightmap_slice[l] > 0
-                fullq_dynmat_element[iq] = begin
+                tmp += begin
                     ifc2_slice[unitpoints_qefrac_folded[l, :]...] *
-                    exp(im * qpoints_cart[iq, :] * unitpoints_cart[l, :]) *
+                    exp(
+                        im * LinAlg.dot(qpoints_cart[iq, :], unitpoints_cart[l, :]),
+                    ) *
                     weightmap_slice[l]
                 end
             end
         end
+        fullq_dynmat_element[iq] = tmp
     end
 
     return mass_prefac_element * fullq_dynmat_element
