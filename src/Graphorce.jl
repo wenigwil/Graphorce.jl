@@ -11,7 +11,9 @@ export ebInputData
 export qeIfc2Output
 
 include("deconvolute.jl")
+export DeconvData
 
 include("phonon.jl")
+export build_dynamical_matrix
 
 end # module Graphorce

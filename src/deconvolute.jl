@@ -3,7 +3,7 @@ struct DeconvData
     unitpoints_qefrac_folded::Array{Int64,4}
     unitpoints_cart::Matrix{Float64}
 
-    function DeconvUtils(ebdata::ebInputData; super_multiplicity_ultra = [4, 4, 4])
+    function DeconvData(ebdata::ebInputData; super_multiplicity_ultra = [4, 4, 4])
         numbasisatoms = ebdata.allocations["numatoms"]
         # numbasisatomsx3 basis in fractional coordiantes
         basis_frac = transpose(ebdata.crystal_info["basis"])

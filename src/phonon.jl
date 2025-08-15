@@ -16,6 +16,8 @@ function build_dynamical_matrix(
     qpoints_cryst::Matrix{Float64},
     lattvecs::Matrix{Float64},
     ifc2::Array{Float64,7},
+    basisatom2species::Vector{Int64},
+    species2mass::Vector{Float64},
 )
     # Extract the data of the deconvolution
     weightmap = deconvolution.weightmap
@@ -33,21 +35,43 @@ function build_dynamical_matrix(
     numatoms = size(weightmap, 1)
     dynmat = Array{ComplexF64,3}(undef, (numqpoints, numatoms * 3, numatoms * 3))
 
-    # We loop over all atoms in all unitcells in the ultracell. We will check for a 
-    # non-vanishing weights at that unitcell
-    num_unit_points = size(unitpoints_cart, 1)
+    mass_prefactor = build_mass_prefactor(basisatom2species, species2mass)
+
     for iat in 1:numatoms
         for jat in 1:numatoms
+            mass_prefac_element = @view mass_prefactor[iat, jat]
+            uqf_slice = @view unitpoints_qefrac_folded[:, jat, iat, :]
+            weightmap_slice = @view weightmap[:, jat, iat]
             for icart in 1:3
                 i = mux2to1(iat, icart)
                 for jcart in 1:3
                     j = mux2to1(jat, jcart)
 
-                    # dynmat[:,i,j] = calc_fullq_dynmat_element()
+                    ifc2_slice = @view ifc2[icart, jcart, iat, jat, :, :, :]
+                    dynmat[:, i, j] = calc_fullq_dynmat_element(
+                        mass_prefac_element,
+                        uqf_slice,
+                        unitpoints_cart,
+                        ifc2_slice,
+                        qpoints_cart,
+                        weightmap_slice,
+                    )
+
+                    # TODO: Do the same thing but pass julia-views
+                    # dynmat[:, i, j] = calc_fullq_dynmat_element(
+                    #     mass_prefactor[iat, jat],
+                    #     unitpoints_qefrac_folded[:, jat, iat, :],
+                    #     unitpoints_cart,
+                    #     ifc2[icart, jcart, iat, jat, :, :, :],
+                    #     qpoints_cart,
+                    #     weightmap[:, jat, iat],
+                    # )
                 end
             end
         end
     end
+
+    return dynmat
 end
 
 """
@@ -78,6 +102,8 @@ indices `i` and `j`. For a specified `iq` we then get a square
     `qpoints_cart[i,:]` will yield the `i`-th q-point in the list.
   - `weightmap_slice::Vector{Float64}`: Slice of the weightmap output by
     `get_weight_map()` specified by fixing its second and third index to τ' and τ
+
+# Output
 """
 function calc_fullq_dynmat_element(
     mass_prefac_element::Float64,
@@ -91,15 +117,17 @@ function calc_fullq_dynmat_element(
     numunitpoints = size(unitpoints_cart, 1)
 
     # Element of the dynmat for all qpoints
-    fullq_dynmat_element = zeros(Float64, numqpoints)
+    fullq_dynmat_element = zeros(ComplexF64, numqpoints)
 
     # Loop over all q-points
     for iq in 1:numqpoints
         for l in 1:numunitpoints
-            fullq_dynmat_element[iq] = begin
-                ifc2_slice[unitpoints_qefrac_folded[l, :]...] *
-                exp(im * qpoints_cart[iq, :] * unitpoints_cart[l, :]) *
-                weightmap_slice[l]
+            if weightmap_slice[l] > 0
+                fullq_dynmat_element[iq] = begin
+                    ifc2_slice[unitpoints_qefrac_folded[l, :]...] *
+                    exp(im * qpoints_cart[iq, :] * unitpoints_cart[l, :]) *
+                    weightmap_slice[l]
+                end
             end
         end
     end
@@ -110,7 +138,7 @@ end
 """
     mux2to1(i::Int64, j::Int64)
 
-Mux two indeces into one.
+Mux two indeces into one. This is only a valid muxing method for 1-based indices.
 
 A very old man told me, it was a good idea.
 """
@@ -134,8 +162,8 @@ that are given in cartesian coordinates with units of `reclattvecs`.
     will yield the `i`-th reciprocal lattice vector.
 """
 function qpoints_cryst2cart(
-    qpoints_cryst::Matrix{Float64},
     reclattvecs::Matrix{Float64},
+    qpoints_cryst::Matrix{Float64},
 )
     numqpoints = size(qpoints_cryst, 1)
     qpoints_cart = zeros(Float64, (numqpoints, 3))
@@ -193,11 +221,10 @@ call `mass[i]` in this comment. Every other `(i,j)`-th element is
 `sqrt( mass[i] * mass[j] )`
 """
 function build_mass_prefactor(
-    numbasisatoms::Int64,
     basisatom2species::Vector{Int64},
     species2mass::Vector{Float64},
 )
-
+    numbasisatoms = size(basisatom2species, 1)
     # Build a vector that holds the mass for each basisatom
     mass = Vector{Float64}(undef, (numbasisatoms))
     for basisatom in 1:numbasisatoms
