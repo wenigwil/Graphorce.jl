@@ -1,0 +1,59 @@
+import Logging
+
+include("../src/Graphorce.jl")
+using .Graphorce
+
+Logging.@info "TEST: Parsing files in Graphorce/examples..."
+ebdata = ebInputData("examples/input.nml")
+qedata = qeIfc2Output("examples/espresso.ifc2");
+
+Logging.@info "TEST: Constructing instance of DeconvData..."
+deconv = DeconvData(ebdata);
+
+Logging.@info "TEST: Reading high-symmetry path from Graphorce/examples"
+# q-points in crystal coordinates
+qpoints_cryst = read_highsympath("examples/fcc_highsympath.txt");
+
+# lattice vectors
+lattvecs = ebdata.crystal_info["lattvecs"];
+
+# interatomic force constants
+ifc2 = qedata.properties["ifc2"];
+
+# translate between the atomic index and species that sits there
+basisatoms2species = ebdata.crystal_info["atomtypes"];
+
+# masses of each species
+species2masses = qedata.properties["species2masses"];
+
+test_point = [0.0, 0.0, 0.0]
+Logging.@info "TEST: Contructing dynamical matrix at " test_point
+dynmat = build_dynamical_matrix(
+    deconv,
+    lattvecs,
+    ifc2,
+    basisatoms2species,
+    species2masses,
+    test_point,
+)
+
+print("\n")
+
+for i in 1:6
+    for j in 1:6
+        print(real(dynmat[i, j]), " ")
+        if j == 6
+            print('\n')
+        end
+    end
+end
+println("")
+
+for i in 1:6
+    for j in 1:6
+        print(imag(dynmat[i, j]), " ")
+        if j == 6
+            print('\n')
+        end
+    end
+end

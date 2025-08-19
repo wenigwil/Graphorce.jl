@@ -1,142 +1,155 @@
+# This is from a precursor of the build dynmat function
+#
+# # Lattvecs are given in nm we need the reclattvecs in bohr
+# # Reciprocal lattice vectors have units of 1/length such that a 
+# # multiplication with the Bohr-radius in nm will convert from 1/nm to 1/bohr
+# reclattvecs = calc_reciprocal_lattvecs(lattvecs) * a0_nm
+# # Change basis of q-points to cartesian in units of Bohr
+# qpoints_cart = qpoints_cryst2cart(reclattvecs, qpoints_cryst)
+#
+
+struct LatticeVibrations
+    fullq_eigvals::Matrix{Float64}
+    sympath::Vector{Float64}
+
+    function LatticeVibrations(
+        ebinputfilepath::AbstractString,
+        qeifc2outputfilepath::AbstractString,
+        sympathfilepath::AbstractString,
+    )
+        # Read necessary data from file for computation
+        ebdata = ebInputData(ebinputfilepath)
+        qedata = qeIfc2Output(qeifc2outputfilepath)
+        qpoints_cryst = read_highsympath(sympathfilepath)
+
+        # Create a deconvolution instance
+        deconvolution = DeconvData(ebdata)
+
+        lattvecs = ebdata.crystal_info["lattvecs"]
+        basisatoms2species = ebdata.crystal_info["atomtypes"]
+        species2masses = qedata.properties["species2masses"]
+        ifc2 = qedata.properties["ifc2"]
+        weightmap = deconvolution.weightmap
+        uqf = deconvolution.unitpoints_qefrac_folded
+        unitpoints_cart = deconvolution.unitpoints_cart
+
+        numqpoints = size(qpoints_cryst, 1)
+        numatoms = size(basisatoms2species, 1)
+
+        fullq_eigvals = Matrix{Float64}(undef, (numqpoints, 3 * numatoms))
+
+        for iq in 1:numqpoints
+            dynmat = build_dynamical_matrix(
+                weightmap,
+                uqf,
+                unitpoints_cart,
+                lattvecs,
+                ifc2,
+                basisatoms2species,
+                species2masses,
+                qpoints_cryst[iq, :],
+            )
+
+            force_hermiticity!(dynmat)
+
+            dynmat = LinAlg.Hermitian(dynmat)
+
+            fullq_eigvals[iq, :] = LinAlg.eigvals(dynmat)
+        end
+
+        # Create a plotable path from the q-points
+        sympath = points_to_distances(qpoints_cryst)
+
+        new(fullq_eigvals, sympath)
+    end
+end
+
+function points_to_distances(pointlist::Matrix{Float64})
+    numpoints = size(pointlist, 1)
+
+    distances = Vector{Float64}(undef, numpoints)
+
+    distances[1] = 0.0
+    for i in 1:(numpoints - 1)
+        dist = LinAlg.norm(pointlist[i, :] - pointlist[i + 1, :])
+
+        distances[i + 1] = distances[i] + dist
+    end
+
+    return distances
+end
+
+function force_hermiticity!(mat::Matrix{ComplexF64})
+    mat .= 1 / 2 * (mat + transpose(conj(mat)))
+end
+
 """
-    <!func signature here!>
-
-# Arguments
-
-  - `lattvecs::Matrix{Float64}`: Collection of direct lattice vectors of the lattice.
-    Stored rowwise as in `lattvecs[:,i]` will yield the `i`-th lattice vector.
-
-  - `qpoints_cryst::Matrix{Float64}`: A list of q-points in fractional coordinates for
-    which the dynamical matrix will be constructed. Ideally this will be a path based
-    on the crystal symmetry. It is assumed that `qpoints_cryst[i,:]` will yield the
-    `i`-th q-point in the list.
+The dynamical tensor is a rank-5 tensor with two atomic indices τ, τ' (inclusive
+range 1 to `numatoms`), two cartesian indices α, α' (inclusive range 1 to 3) and one
+q-point index `iq` (inclusive range 1 to `numqpoints`). The tensor will be
+represented as a rank-3 tensor by muxing the two index-pairs τ, α and τ', α' into two
+indices `i` and `j`. For a specified `iq` we then get a square
+`3*numatoms`x`3*numatoms`-matrix.
 """
 function build_dynamical_matrix(
-    deconvolution::DeconvData,
-    qpoints_cryst::Matrix{Float64},
+    weightmap::Array{Float64,3},
+    uqf::Array{Int64,4},
+    unitpoints_cart::Matrix{Float64},
     lattvecs::Matrix{Float64},
     ifc2::Array{Float64,7},
     basisatom2species::Vector{Int64},
     species2mass::Vector{Float64},
+    qpoint_cryst::Vector{Float64},
 )
-    # Extract the data of the deconvolution
-    weightmap = deconvolution.weightmap
-    unitpoints_qefrac_folded = deconvolution.unitpoints_qefrac_folded
-    unitpoints_cart = deconvolution.unitpoints_cart
+    numatoms = size(basisatom2species, 1)
+    dynmat = zeros(ComplexF64, (3 * numatoms, 3 * numatoms))
+    numunitpoints = size(unitpoints_cart, 1)
 
     # Lattvecs are given in nm we need the reclattvecs in bohr
     # Reciprocal lattice vectors have units of 1/length such that a 
     # multiplication with the Bohr-radius in nm will convert from 1/nm to 1/bohr
     reclattvecs = calc_reciprocal_lattvecs(lattvecs) * a0_nm
-    # Change basis of q-points to cartesian in units of Bohr
-    qpoints_cart = qpoints_cryst2cart(reclattvecs, qpoints_cryst)
 
-    numqpoints = size(qpoints_cryst, 1)
-    numatoms = size(weightmap, 1)
-    dynmat = Array{ComplexF64,3}(undef, (numqpoints, numatoms * 3, numatoms * 3))
+    qpoint_cart = reclattvecs * qpoint_cryst
 
     mass_prefactor = build_mass_prefactor(basisatom2species, species2mass)
-
     for iat in 1:numatoms
         for jat in 1:numatoms
-            mass_prefac_element = @view mass_prefactor[iat, jat]
-            uqf_slice = @view unitpoints_qefrac_folded[:, jat, iat, :]
-            weightmap_slice = @view weightmap[:, jat, iat]
             for icart in 1:3
                 i = mux2to1(iat, icart)
                 for jcart in 1:3
                     j = mux2to1(jat, jcart)
 
-                    ifc2_slice = @view ifc2[icart, jcart, iat, jat, :, :, :]
-                    dynmat[:, i, j] = calc_fullq_dynmat_element(
-                        mass_prefac_element,
-                        uqf_slice,
-                        unitpoints_cart,
-                        ifc2_slice,
-                        qpoints_cart,
-                        weightmap_slice,
-                    )
+                    for l in 1:numunitpoints
+                        if weightmap[l, jat, iat] > 0
+                            dynmat[i, j] += begin
+                                ifc2[
+                                    icart,
+                                    jcart,
+                                    iat,
+                                    jat,
+                                    uqf[l, jat, iat, 1],
+                                    uqf[l, jat, iat, 2],
+                                    uqf[l, jat, iat, 3],
+                                ] *
+                                exp(
+                                    im * LinAlg.dot(
+                                        qpoint_cart,
+                                        unitpoints_cart[l, :],
+                                    ),
+                                ) *
+                                weightmap[l, jat, iat]
+                            end
+                        end
+                    end
 
-                    # TODO: Do the same thing but pass julia-views
-                    # dynmat[:, i, j] = calc_fullq_dynmat_element(
-                    #     mass_prefactor[iat, jat],
-                    #     unitpoints_qefrac_folded[:, jat, iat, :],
-                    #     unitpoints_cart,
-                    #     ifc2[icart, jcart, iat, jat, :, :, :],
-                    #     qpoints_cart,
-                    #     weightmap[:, jat, iat],
-                    # )
+                    dynmat[i, j] /= mass_prefactor[iat, jat]
                 end
             end
         end
     end
 
     return dynmat
-end
-
-"""
-Calculate one element of the dynamical tensor for all q-points.
-
-The dynamical tensor is a rank-5 tensor with two atomic indices τ, τ' (inclusive
-range 1 to `numatoms`), two cartesian indices α, α' (inclusive range 1 to 3) and one
-q-point index `iq` (inclusive range 1 to `numqpoints`). The tensor will be
-represented as a rank-3 tensor by muxing the two index-pairs τ, α and τ', α' into two
-indices `i` and `j`. For a specified `iq` we then get a square
-`3*numatoms`x`3*numatoms`-matrix of which one element for every `iq` from 1 to
-`numqpoints` will be computed.
-
-# Arguments
-
-  - `mass_prefac_element::Float64`: Element of the matrix computed by
-    `build_mass_prefactor()` specified by the atomic indices τ and τ'.
-  - `unitpoints_qefrac_folded::Matrix{Float64}`: Slice matrix of the output from
-    `get_unitpoints_qefrac_folded()` specified by fixing it's second and third index
-    to atomic indices τ' and τ.
-  - `unitpoints_cart::Matrix{Float64}`: Points of all unitcell origins withing the
-    ultracell in cartesian coordinates in units of Bohr.
-  - `ifc2_slice::Array{Float64,3}`: Slice of the rank-7 ifc2-tensor. Specified by
-    fixing its first four indices with α,α',τ and τ'. The leftover indices will accept
-    the `unitpoints_qefrac_folded`.
-  - `qpoints_cart::Matrix{Float64}`: A list of q-points in cartesian coordinates.
-    Ideally this will be a path based on the crystal symmetry. It is assumed that
-    `qpoints_cart[i,:]` will yield the `i`-th q-point in the list.
-  - `weightmap_slice::Vector{Float64}`: Slice of the weightmap output by
-    `get_weight_map()` specified by fixing its second and third index to τ' and τ
-
-# Output
-"""
-function calc_fullq_dynmat_element(
-    mass_prefac_element::Float64,
-    unitpoints_qefrac_folded::Matrix{Float64},
-    unitpoints_cart::Matrix{Float64},
-    ifc2_slice::Array{Float64,3},
-    qpoints_cart::Matrix{Float64},
-    weightmap_slice::Vector{Float64},
-)
-    numqpoints = size(qpoints_cart, 1)
-    numunitpoints = size(unitpoints_cart, 1)
-
-    # Element of the dynmat for all qpoints
-    fullq_dynmat_element = zeros(ComplexF64, numqpoints)
-
-    # Loop over all q-points
-    for iq in 1:numqpoints
-        tmp = 0
-        for l in 1:numunitpoints
-            if weightmap_slice[l] > 0
-                tmp += begin
-                    ifc2_slice[unitpoints_qefrac_folded[l, :]...] *
-                    exp(
-                        im * LinAlg.dot(qpoints_cart[iq, :], unitpoints_cart[l, :]),
-                    ) *
-                    weightmap_slice[l]
-                end
-            end
-        end
-        fullq_dynmat_element[iq] = tmp
-    end
-
-    return mass_prefac_element * fullq_dynmat_element
 end
 
 """

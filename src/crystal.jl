@@ -25,3 +25,18 @@ function calc_reciprocal_lattvecs(lattvecs::Matrix{Float64})
     reclattvecs = (2 * pi / volume) * reclattvecs
     return reclattvecs
 end
+
+function read_highsympath(file::AbstractString)
+    sympathfile = open(file)
+
+    numlines = parse(Int64, readline(sympathfile))
+
+    sympath = Matrix{Float64}(undef, (numlines, 3))
+    for line in 1:numlines
+        test = parse.(Float64, split(readline(sympathfile)))
+        sympath[line, :] = test
+    end
+
+    close(sympathfile)
+    return sympath
+end
