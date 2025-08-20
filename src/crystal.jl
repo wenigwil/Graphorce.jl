@@ -26,6 +26,9 @@ function calc_reciprocal_lattvecs(lattvecs::Matrix{Float64})
     return reclattvecs
 end
 
+function connect_points(pointlist::Matrix{Float64})
+end
+
 function read_highsympath(file::AbstractString)
     sympathfile = open(file)
 

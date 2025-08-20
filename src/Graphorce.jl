@@ -12,6 +12,7 @@ export qeIfc2Output
 
 include("deconvolute.jl")
 export DeconvData
+# include("no_deconv.jl")
 
 include("phonon.jl")
 export build_dynamical_matrix

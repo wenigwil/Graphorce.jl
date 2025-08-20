@@ -9,7 +9,7 @@
 #
 
 struct LatticeVibrations
-    fullq_eigvals::Matrix{Float64}
+    fullq_freqs::Matrix{Float64}
     sympath::Vector{Float64}
 
     function LatticeVibrations(
@@ -36,8 +36,9 @@ struct LatticeVibrations
         numqpoints = size(qpoints_cryst, 1)
         numatoms = size(basisatoms2species, 1)
 
-        fullq_eigvals = Matrix{Float64}(undef, (numqpoints, 3 * numatoms))
+        enforce_acoustic_sum_rule!(ifc2)
 
+        fullq_freqs = Matrix{Float64}(undef, (numqpoints, 3 * numatoms))
         for iq in 1:numqpoints
             dynmat = build_dynamical_matrix(
                 weightmap,
@@ -50,28 +51,68 @@ struct LatticeVibrations
                 qpoints_cryst[iq, :],
             )
 
+            # dynmat = build_dynamical_matrix_no_deconv(
+            #     lattvecs,
+            #     ifc2,
+            #     basisatoms2species,
+            #     species2masses,
+            #     qpoints_cryst[iq, :],
+            # )
+
             force_hermiticity!(dynmat)
 
             dynmat = LinAlg.Hermitian(dynmat)
 
-            fullq_eigvals[iq, :] = LinAlg.eigvals(dynmat)
+            eigvals = LinAlg.eigvals(dynmat)
+
+            fullq_freqs[iq, :] = copysign.(sqrt.(abs.(eigvals)), eigvals)
+
+            if iszero(qpoints_cryst[iq, :])
+                fullq_freqs[iq, 1:3] .= [0.0, 0.0, 0.0]
+            end
         end
 
         # Create a plotable path from the q-points
-        sympath = points_to_distances(qpoints_cryst)
+        sympath = path_to_distance(qpoints_cryst)
 
-        new(fullq_eigvals, sympath)
+        new(fullq_freqs, sympath)
     end
 end
 
-function points_to_distances(pointlist::Matrix{Float64})
+function points_to_path(pointlist::Matrix{Float64}; numpoints_per_section = 50)
     numpoints = size(pointlist, 1)
+    numsections = numpoints - 1
+    numpoints_path = numsections * numpoints_per_section + 1
+
+    path = zeros(Float64, (numpoints_path, 3))
+    path[1, :] = pointlist[1, :]
+    section = 0
+    for is in 1:numsections
+        start = 1 + numpoints_per_section * section
+        stop = 1 + numpoints_per_section * (section + 1)
+
+        direction = pointlist[is + 1, :] - pointlist[is, :]
+        println("Direction is ", direction)
+        direction ./= numpoints_per_section
+        i = 0
+        for js in start:stop
+            path[js, :] .= i * direction + path[start, :]
+            i += 1
+        end
+        section += 1
+    end
+
+    return path
+end
+
+function path_to_distance(path::Matrix{Float64})
+    numpoints = size(path, 1)
 
     distances = Vector{Float64}(undef, numpoints)
 
     distances[1] = 0.0
     for i in 1:(numpoints - 1)
-        dist = LinAlg.norm(pointlist[i, :] - pointlist[i + 1, :])
+        dist = LinAlg.norm(path[i, :] - path[i + 1, :])
 
         distances[i + 1] = distances[i] + dist
     end
