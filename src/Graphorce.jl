@@ -4,6 +4,7 @@ import Logging
 import LinearAlgebra as LinAlg
 
 include("constants.jl")
+include("misc.jl")
 include("crystal.jl")
 include("parsers/elphbolt-nml.jl")
 include("parsers/qe-ifc2-out.jl")
