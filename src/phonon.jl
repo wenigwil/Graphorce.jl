@@ -1,13 +1,3 @@
-# This is from a precursor of the build dynmat function
-#
-# # Lattvecs are given in nm we need the reclattvecs in bohr
-# # Reciprocal lattice vectors have units of 1/length such that a 
-# # multiplication with the Bohr-radius in nm will convert from 1/nm to 1/bohr
-# reclattvecs = calc_reciprocal_lattvecs(lattvecs) * a0_nm
-# # Change basis of q-points to cartesian in units of Bohr
-# qpoints_cart = qpoints_cryst2cart(reclattvecs, qpoints_cryst)
-#
-
 struct LatticeVibrations
     fullq_freqs::Matrix{Float64}
     sympath::Vector{Float64}
@@ -15,19 +5,21 @@ struct LatticeVibrations
     function LatticeVibrations(
         ebinputfilepath::AbstractString,
         qeifc2outputfilepath::AbstractString,
-        sympathfilepath::AbstractString,
-        # highsympoints_cryst::Matrix{Float64};
-        # numpoints_per_section = 50,
+        highsympoints_cryst...;
+        numpoints_per_section::Int64 = 50,
     )
         # Read necessary data from file for computation
         ebdata = ebInputData(ebinputfilepath)
         qedata = qeIfc2Output(qeifc2outputfilepath)
-        qpoints_cryst = read_highsympath(sympathfilepath)
-        # path = points_to_path(
-        #     highsympoints_cryst;
-        #     numpoints_per_section = numpoints_per_section,
-        # )
-        # qpoints_cryst = path_to_distance(path)
+        qpoints_cryst, stitches = points_to_path(
+            highsympoints_cryst...;
+            numpoints_per_section = numpoints_per_section,
+            return_stitches = true,
+        )
+        println("This is the size of the qpoint matrix ", size(qpoints_cryst))
+        println("This is the size of the stitches vector ", size(stitches))
+        # Create a plotable path from the q-points
+        sympath = path_to_distance(qpoints_cryst, stitches)
 
         # Create a deconvolution instance
         deconvolution = DeconvData(ebdata)
@@ -58,14 +50,6 @@ struct LatticeVibrations
                 qpoints_cryst[iq, :],
             )
 
-            # dynmat = build_dynamical_matrix_no_deconv(
-            #     lattvecs,
-            #     ifc2,
-            #     basisatoms2species,
-            #     species2masses,
-            #     qpoints_cryst[iq, :],
-            # )
-
             force_hermiticity!(dynmat)
 
             dynmat = LinAlg.Hermitian(dynmat)
@@ -78,9 +62,6 @@ struct LatticeVibrations
                 fullq_freqs[iq, 1:3] .= [0.0, 0.0, 0.0]
             end
         end
-
-        # Create a plotable path from the q-points
-        sympath = path_to_distance(qpoints_cryst)
 
         new(fullq_freqs, sympath)
     end
