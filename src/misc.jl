@@ -1,3 +1,7 @@
+# TODO: Write more Docs for this file please for gods sake.
+
+
+
 function read_highsympath(file::AbstractString)
     sympathfile = open(file)
 
@@ -48,8 +52,6 @@ function points_to_path(
     end
 end
 
-# TODO Write this function into a form such that it accepts multiple lists of points 
-# and converts it into a big list of points
 function points_to_path(
     points::Matrix{Float64},
     more_pointlists...;

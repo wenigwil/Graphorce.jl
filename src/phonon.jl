@@ -16,8 +16,6 @@ struct LatticeVibrations
             numpoints_per_section = numpoints_per_section,
             return_stitches = true,
         )
-        println("This is the size of the qpoint matrix ", size(qpoints_cryst))
-        println("This is the size of the stitches vector ", size(stitches))
         # Create a plotable path from the q-points
         sympath = path_to_distance(qpoints_cryst, stitches)
 
