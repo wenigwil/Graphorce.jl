@@ -1,6 +1,7 @@
 struct LatticeVibrations
     fullq_freqs::Matrix{Float64}
-    sympath::Vector{Float64}
+    qpoints_cryst::Matrix{Float64}
+    stitches::BitVector
 
     function LatticeVibrations(
         ebinputfilepath::AbstractString,
@@ -16,9 +17,6 @@ struct LatticeVibrations
             numpoints_per_section = numpoints_per_section,
             return_stitches = true,
         )
-        # Create a plotable path from the q-points
-        sympath = path_to_distance(qpoints_cryst, stitches)
-
         # Create a deconvolution instance
         deconvolution = DeconvData(ebdata)
 
@@ -61,7 +59,10 @@ struct LatticeVibrations
             end
         end
 
-        new(fullq_freqs, sympath)
+        # Unit conversion
+        fullq_freqs .*= RydtoTHz
+
+        new(fullq_freqs, qpoints_cryst, stitches)
     end
 end
 
