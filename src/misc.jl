@@ -1,5 +1,3 @@
-# TODO: Write more Docs for this file please for gods sake.
-
 function read_highsympath(file::AbstractString)
     sympathfile = open(file)
 
@@ -15,10 +13,44 @@ function read_highsympath(file::AbstractString)
     return sympath
 end
 
+"""
+    function points_to_path(
+        pointlist::Matrix{Float64};
+        numpoints_per_section::Int64 = 50,
+        return_stitches = false)
+
+Generate a path by parwise-linear interpolation between all points from an array of
+points. Control the step size by choosing the number of steps in the linear
+interpolation between each point pair (section).
+
+The `return_stitches` argument ensures compatibility with the `path_to_distance()`
+function. Every point from `pointlist` will be in the returned path.
+
+# Arguments
+
+  - `pointlist::Matrix{Float64}`: Collection of points which will be interpolated.
+    The `j`-th point corresponds to `pointlist[j,:]`.
+  - `numpoints_per_section::Int64`: The number of steps from one point to another
+    including the arrival point itself.
+    `pointlist` in the returned path.
+  - `return_stitches::Bool`: Whether or not a `BitVector` should be returned where
+    two consecutive `true`-values mark a stichting where multiple `pointlists` are
+    joined. (Used for plotting dispersions with a symmetry path containing U|K for
+    example)
+
+# Output
+
+  - `path::Matrix{Float64}`: Collection points resulting from the interpolation. The
+    size of the resulting array should be
+    `( (size(pointlist,1)-1)*numpoints_per_section + 1, 3 )`
+  - `stitches::BitVector`: Vector of size of `path` that is `false` everywhere except
+    on positions where two `path`s from two `pointlists` are stitched together to form
+    one connected path.
+"""
 function points_to_path(
     pointlist::Matrix{Float64};
     numpoints_per_section::Int64 = 50,
-    return_stitches = false,
+    return_stitches::Bool = false,
 )
     numpoints = size(pointlist, 1)
     numsections = numpoints - 1
@@ -50,6 +82,16 @@ function points_to_path(
     end
 end
 
+"""
+    function points_to_path(
+        points::Matrix{Float64},
+        more_pointlists...;
+        numpoints_per_section::Int64 = 50,
+        return_stitches = false)
+
+Method of the `points_to_path` function that is capable of handling more than one
+`pointlist`.
+"""
 function points_to_path(
     points::Matrix{Float64},
     more_pointlists...;
@@ -77,6 +119,33 @@ function points_to_path(
     end
 end
 
+"""
+    function xticks_from_path(
+        path::Matrix{Float64},
+        sympoints::Matrix{Float64},
+        sympoint_labels::Vector{String})
+
+Generate the positions and labels of the ticks on x-axis for plotting dispersions.
+
+# Arguments
+
+  - `path::Matrix{Float64}`: Output from the `points_to_path()`-function.
+
+  - `sympoints::Matrix{Float64}`: A list of symmetry points that is supposedly
+    contained in `path`. Must match the ordering of `sympoint_labels`
+  - `sympoint_labels::Vector{String}`: A list of the labels for each point in
+    `sympoints`. The ordering must match with `sympoints`.
+
+# Output
+
+  - `xtick_labels::Vector{String}`: A collection of the labels for each symmetry
+    point found in `path`. Also constructs labels like "U|K" if two symmetry points
+    from `sympoints` are found directly next to each other which indicates a
+    stitching.
+
+  - `xtick_positions::Vector{Float64}`: A collection of the distances at which an
+    xtick-label should be put.
+"""
 function xticks_from_path(
     path::Matrix{Float64},
     sympoints::Matrix{Float64},
@@ -115,6 +184,13 @@ function xticks_from_path(
     return xticks, sympoint_positions
 end
 
+"""
+    path_to_distance(path::Matrix{Float64}, stitches::BitVector)
+
+Converts a given `path` into a plotable array of accumulated distance. Using the
+`stitches` returned by `points_to_path()` the plotable array is generated for paths
+that are the product of to paths stitched together.
+"""
 function path_to_distance(path::Matrix{Float64}, stitches::BitVector)
     numpoints = size(path, 1)
 
@@ -133,6 +209,17 @@ function path_to_distance(path::Matrix{Float64}, stitches::BitVector)
     return distances
 end
 
+"""
+    path_to_xaxis(
+        path::Matrix{Float64},
+        stitches::BitVector,
+        sympoints::Matrix{Float64},
+        sympoint_labels::Vector{String})
+
+Process a symmetry path such that you can plot properties along it. Generate a
+plotable array from an array of points and also return the xtick-labels and -positions
+of them.
+"""
 function path_to_xaxis(
     path::Matrix{Float64},
     stitches::BitVector,
