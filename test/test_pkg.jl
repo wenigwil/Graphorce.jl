@@ -1,4 +1,5 @@
-import Plots
+import Plots;
+Plots.pgfplotsx();
 import LinearAlgebra as LinAlg
 include("../src/Graphorce.jl")
 
@@ -11,7 +12,7 @@ seek_path_basis = [
     1.0 1.0 -1.0
 ]
 
-point_labels = ["Γ", "K", "L", "U", "W", "X", "W2"]
+point_labels = ["Γ", "K", "L", "U", "W", "X", raw"$\mathrm{W}_2$"]
 seek_path_points = [
     0.0 0.0 0.0
     0.375 0.375 0.75
@@ -24,11 +25,6 @@ seek_path_points = [
 
 seek_path_1 = seek_path_points[[1, 6, 4], :]
 seek_path_2 = seek_path_points[[2, 1, 3, 5, 6, 7], :]
-
-# println("SeeK Path Points")
-# for i in axes(seek_path_points, 1)
-#     println(point_labels[i], '\t', seek_path_points[i, :])
-# end
 
 harmonic_phonons = LatticeVibrations(
     "examples/input.nml",
@@ -45,6 +41,9 @@ stitches = harmonic_phonons.stitches;
 distances, xticks_labels, xticks_pos =
     Graphorce.path_to_xaxis(qpoints_cryst, stitches, seek_path_points, point_labels)
 
+extra_dict =
+    Dict("tick style" => "thick", "xtick pos" => "left", "ytick pos" => "left")
+
 p = Plots.plot(
     distances,
     fullq_freqs;
@@ -52,13 +51,17 @@ p = Plots.plot(
     grid = false,
     xlims = (minimum(distances), maximum(distances)),
     ylims = (minimum(fullq_freqs), 1.05 * maximum(fullq_freqs)),
-    framestyle = :semi,
+    framestyle = :box,
     tickdirection = :out,
     color = :blue,
     lw = 0.7,
     xticks = (xticks_pos, xticks_labels),
     ylabel = "Frequency ω [THz]",
+    tex_output_standalone = true,
+    xtickfontsize = 12,
+    ytickfontsize = 12,
+    extra_kwargs = Dict(:subplot => extra_dict),
 )
-Plots.vline!(xticks_pos[2:(end - 1)], lc = :black, lw = 0.9)
 
-# Plots.savefig("phonon-disp.pdf")
+Plots.vline!(xticks_pos[2:(end - 1)], lc = :black, lw = 0.9)
+Plots.savefig("phonon-disp.pdf")
