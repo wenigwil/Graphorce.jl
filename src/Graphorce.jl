@@ -8,6 +8,7 @@ include("misc.jl")
 include("crystal.jl")
 include("parsers/elphbolt-nml.jl")
 include("parsers/qe-ifc2-out.jl")
+include("parsers/thirdorder-ifc3-out.jl")
 export ebInputData
 export qeIfc2Output
 
