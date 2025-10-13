@@ -60,6 +60,8 @@ struct qeIfc2Output
 
         # NEXT ntype LINE(S)
         # ntype are the number species of atoms
+        # In the ifc2-file the mass (in kg) is given in multiples of 2*m_e...
+        # ... with m_e representing the electron mass
         mass = Vector{Float64}(undef, ntype)
         label = Array{String}(undef, ntype)
         for i in 1:ntype
@@ -67,9 +69,6 @@ struct qeIfc2Output
             label[i] = chop(temp[2], head = 1, tail = 1)
             mass[i] = parse(Float64, temp[3])
         end
-
-        # Convert the masses from the Rydberg-ian unitsystem used in 
-        # Quantum-Espresso into *relative atomic mass*
 
         Logging.@debug "readifc2() Next $ntype line(s) read..." mass label
 

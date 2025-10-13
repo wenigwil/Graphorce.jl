@@ -6,6 +6,7 @@
 &crystal_info
 	name = 'Cubic Si'
 	elements = "Si"
+        masses = 28.085999
         atomtypes = 1 1
 	DIB = .true. !Use dominant isotope mass for phonon ground state calculation
         lattvecs(:,2) =   0.00000000   0.27010011   0.27010011

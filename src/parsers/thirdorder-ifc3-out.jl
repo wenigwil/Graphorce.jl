@@ -1,3 +1,9 @@
+struct Ifc3Output
+    output_file::AbstractString
+    properties::Dict
+
+    function Ifc3Output() end
+end
 
 function read_ifc3(output_file_path::String)
     if isfile(output_file_path) == false
@@ -13,5 +19,49 @@ function read_ifc3(output_file_path::String)
 
     output_file = open(output_file_path)
 
+    # Number of 3-atom combinations (triplets)
+    # This number of combinations was reduced by symmetry operations
+    num_triplets = parse(Int64, readline(output_file))
+
+    # ifc3-Tensor
+    ifc3_tensor = Array{Float64}(undef, (3, 3, 3, num_triplets))
+
+    # Positions of the second and third atoms that are not put into the origin
+    trip2position_j = Matrix{Float64}(undef, (3, num_triplets))
+    trip2position_k = Matrix{Float64}(undef, (3, num_triplets))
+
+    # Atomic indices
+    trip2atomindices = Matrix{Int64}(undef, (3, num_triplets))
+
+    # Skip one line
+    readline(output_file)
+
+    for itrip in 1:num_triplets
+        # skip the triplet index
+        readline(output_file)
+
+        # Positions
+        trip2position_j[:, itrip] = parse.(Float64, split(readline(output_file)))
+        trip2position_k[:, itrip] = parse.(Float64, split(readline(output_file)))
+
+        # Atomic indices
+        trip2atomindices[:, itrip] = parse.(Int64, split(readline(output_file)))
+
+        # Displacement indices and value 
+        for idisp in 1:3
+            for jdisp in 1:3
+                for kdisp in 1:3
+                    tmp = split(readline(output_file))
+                    ifc3_tensor[idisp, jdisp, kdisp, itrip] = parse(Float64, tmp[4])
+                end
+            end
+        end
+
+        # Blank line separation
+        readline(output_file)
+    end
+
     close(output_file)
+
+    return ifc3_tensor
 end

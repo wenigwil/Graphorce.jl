@@ -22,11 +22,15 @@ struct LatticeVibrations
 
         lattvecs = ebdata.crystal_info["lattvecs"]
         basisatoms2species = ebdata.crystal_info["atomtypes"]
-        species2masses = qedata.properties["species2masses"]
+        species2masses = ebdata.crystal_info["masses"]
         ifc2 = qedata.properties["ifc2"]
         weightmap = deconvolution.weightmap
         uqf = deconvolution.unitpoints_qefrac_folded
         unitpoints_cart = deconvolution.unitpoints_cart
+
+        # elphbolt input.nml has the atom mass in units of Dalton (amu) and we need 
+        # them in multiples of the electron mass (Rydberg units) for these calcs
+        species2masses = species2masses * m_u / (2 * m_e)
 
         numqpoints = size(qpoints_cryst, 1)
         numatoms = size(basisatoms2species, 1)

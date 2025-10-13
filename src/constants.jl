@@ -12,3 +12,9 @@ const hbar_Thz = 1.05457172647e-22
 
 # angular frequency in rydberg to ang. THz
 const RydtoTHz = (rydberg_joule / hbar_Thz) / (2 * pi)
+
+# Mass of an electron in kg
+const m_e = 9.10938291e-31
+
+# Dalton (Unified atomic mass unit) in kg
+const m_u = 1.660538921e-27

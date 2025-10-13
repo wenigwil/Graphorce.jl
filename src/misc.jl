@@ -1,3 +1,13 @@
+# # Method of isspace that accepts strings
+# function Base.isspace(word::AbstractString)
+#     for i in word
+#         if !isspace(i)
+#             return false
+#         end
+#     end
+#     return true
+# end
+
 function read_highsympath(file::AbstractString)
     sympathfile = open(file)
 
