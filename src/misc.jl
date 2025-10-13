@@ -10,7 +10,6 @@
 
 function read_highsympath(file::AbstractString)
     sympathfile = open(file)
-
     numlines = parse(Int64, readline(sympathfile))
 
     sympath = Matrix{Float64}(undef, (numlines, 3))
