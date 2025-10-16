@@ -6,12 +6,6 @@ include("../src/Graphorce.jl")
 using .Graphorce
 
 # Seekpath cF1 high symmetry points
-seek_path_basis = [
-    -1.0 1.0 1.0
-    1.0 -1.0 1.0
-    1.0 1.0 -1.0
-]
-
 point_labels = ["Γ", "K", "L", "U", "W", "X", raw"$\mathrm{W}_2$"]
 seek_path_points = [
     0.0 0.0 0.0
@@ -22,7 +16,7 @@ seek_path_points = [
     0.5 0.0 0.5
     0.75 0.25 0.5
 ]
-
+# Build a "walkable" path from the seekpath symmtry points
 seek_path_1 = seek_path_points[[1, 6, 4], :]
 seek_path_2 = seek_path_points[[2, 1, 3, 5, 6, 7], :]
 

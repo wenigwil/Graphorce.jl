@@ -11,12 +11,13 @@ include("parsers/qe-ifc2-out.jl")
 include("parsers/thirdorder-ifc3-out.jl")
 export ebInputData
 export qeIfc2Output
+export Ifc3Output
 
 include("deconvolute.jl")
 export DeconvData
 
 include("phonon.jl")
-export build_dynamical_matrix
 export LatticeVibrations
+export Phonons
 
 end # module Graphorce
