@@ -63,6 +63,10 @@ struct LatticeVibrations
             end
         end
 
+        # Create a big dynmat-array for all q-points
+        # Send it to the device using CuArray
+        # use the batched eigenvalue solver
+
         # Unit conversion
         fullq_freqs .*= RydtoTHz
 
@@ -112,7 +116,7 @@ basisvectors from a given basis.
 function snap_to_basis!(basis::Matrix{Float64}, positions::Matrix{Float64})
     # Solve a system of linear equations to get the coefficients that make up the 
     # positions as linear combinations
-    positions_frac = \(basis,positions)
+    positions_frac = \(basis, positions)
 
     # Now 
 end
