@@ -16,8 +16,10 @@ export Ifc3Output
 include("deconvolute.jl")
 export DeconvData
 
-include("phonon.jl")
+include("harmonic.jl")
 export LatticeVibrations
+
+include("anharmonic.jl")
 export Phonons
 
 end # module Graphorce
