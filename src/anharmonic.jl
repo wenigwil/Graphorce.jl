@@ -16,6 +16,7 @@ struct Phonons
         ifc3_tensor = todata.properties["ifc3_tensor"]
         numtriplets = todata.properties["numtriplets"]
         # Convert the triplet index to needed quantities
+        # Positions in Angstrom
         trip2position_j = todata.properties["trip2position_j"]
         trip2position_k = todata.properties["trip2position_k"]
         trip2atomindeces = todata.properties["trip2atomindices"]
@@ -30,15 +31,33 @@ struct Phonons
                 )
             end
         end
+
+        # Snapping the cell origin coordinates of the two displaced atoms to the 
+        # exact lattice vectors. Converted to the units of lattvecs (nm)
+        snap_to_lattvecs!(lattvecs, trip2position_k ./ 10)
+        snap_to_lattvecs!(lattvecs, trip2position_j ./ 10)
     end
 end
 
 """
-Snapping positions such that their coordinates are the result of an integer linear
-combination integer multiples of basisvectors from a given basis.
+Snapping positions such that their coordinates are the result of an linear
+combination of integer multiples of basisvectors from given lattice vectors.
+
+Lattice Vectors have to be in the form `lattvecs = [ a1 a2 a3 ]`
 """
-function snap_to_basis!(basis::Matrix{Float64}, positions::Matrix{Float64})
+function snap_to_lattvecs!(
+    lattvecs::Matrix{Float64},
+    positions::Matrix{Float64},
+)::Matrix{Float64}
     # Solve a system of linear equations to get the coefficients that make up the 
     # positions as linear combinations
-    positions_frac = \(basis, positions)
+
+    # Getting the positions in fractional coordinates as integers
+    # Rounding like fortrans `anint()`. Ties are rounded away from zero
+    positions_frac = round.(\(lattvecs, positions), RoundNearestTiesAway)
+
+    # Overriding the original positions
+    positions = lattvecs * positions_frac
+
+    return
 end
