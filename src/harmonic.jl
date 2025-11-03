@@ -1,36 +1,36 @@
 struct LatticeVibrations
     fullq_freqs::Matrix{Float64}
     eigdisplacement::Array{ComplexF64,3}
-    qpoints_cryst::Matrix{Float64}
-    stitches::BitVector
+    # qpoints_cryst::Matrix{Float64}
+    # stitches::BitVector
 
     function LatticeVibrations(
-        ebinputfilepath::AbstractString,
-        qeifc2outputfilepath::AbstractString,
-        highsympoints_cryst...;
-        numpoints_per_section::Int64 = 50,
+        ebdata::ebInputData,
+        qedata::qeIfc2Output,
+        deconvolution::DeconvData,
+        qpoints_cryst::Matrix{Float64},
+        # highsympoints_cryst...;
+        # numpoints_per_section::Int64 = 50,
     )
-        # Read necessary data from file for computation
-        ebdata = ebInputData(ebinputfilepath)
-        qedata = qeIfc2Output(qeifc2outputfilepath)
-        qpoints_cryst, stitches = points_to_path(
-            highsympoints_cryst...;
-            numpoints_per_section = numpoints_per_section,
-            return_stitches = true,
-        )
-        # Create a deconvolution instance
-        deconvolution = DeconvData(ebdata)
-
+        # # Read necessary data from file for computation
+        # qpoints_cryst, stitches = points_to_path(
+        #     highsympoints_cryst...;
+        #     numpoints_per_section = numpoints_per_section,
+        #     return_stitches = true,
+        # )
+        #
         lattvecs = ebdata.crystal_info["lattvecs"]
         basisatoms2species = ebdata.crystal_info["atomtypes"]
         species2masses = ebdata.crystal_info["masses"]
+
         ifc2 = qedata.properties["ifc2"]
+
         weightmap = deconvolution.weightmap
         uqf = deconvolution.unitpoints_qefrac_folded
         unitpoints_cart = deconvolution.unitpoints_cart
 
         # elphbolt input.nml has the atom mass in units of Dalton (amu) and we need 
-        # them in multiples of the electron mass (Rydberg units) for these calcs
+        # them in multiples of double electron mass (Rydberg units) for these calcs
         species2masses = species2masses * m_u / (2 * m_e)
 
         numqpoints = size(qpoints_cryst, 1)
@@ -41,7 +41,7 @@ struct LatticeVibrations
         fullq_freqs = Matrix{Float64}(undef, (numqpoints, 3 * numatoms))
         eigdisplacement =
             Array{ComplexF64,3}(undef, (3 * numatoms, 3 * numatoms, numqpoints))
-        for iq in 1:numqpoints
+        for iq in axes(qpoints_cryst, 1)
             dynmat = build_dynamical_matrix(
                 weightmap,
                 uqf,
@@ -77,7 +77,7 @@ struct LatticeVibrations
         # Unit conversion
         fullq_freqs .*= RydtoTHz
 
-        new(fullq_freqs, eigdisplacement, qpoints_cryst, stitches)
+        new(fullq_freqs, eigdisplacement)
     end
 end
 
@@ -186,7 +186,7 @@ function qpoints_cryst2cart(
 )
     numqpoints = size(qpoints_cryst, 1)
     qpoints_cart = zeros(Float64, (numqpoints, 3))
-    for iq in 1:numqpoints
+    for iq in axes(qpoints_cryst, 1)
         qpoints_cart[iq, :] = reclattvecs * qpoints_cryst[iq, :]
     end
 

@@ -5,6 +5,7 @@ import LinearAlgebra as LinAlg
 
 include("constants.jl")
 include("misc.jl")
+export Sympath
 include("crystal.jl")
 include("parsers/elphbolt-nml.jl")
 include("parsers/qe-ifc2-out.jl")

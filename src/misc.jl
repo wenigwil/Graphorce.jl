@@ -8,6 +8,34 @@
 #     return true
 # end
 
+struct Sympath
+    path_qpoints::Matrix{Float64}
+    path_distances::Vector{Float64}
+    xticks_pos::Vector{Float64}
+    xticks_labels::Vector{String}
+
+    function Sympath(
+        sympoints::Matrix{Float64},
+        sympoint_labels::Vector{String},
+        routes...;
+        numpoints_per_section::Int64 = 50,
+    )
+
+        # Walk along all the routes and construct one list of qpoints from that walk
+        qpoints, stitches = points_to_path(
+            routes...;
+            numpoints_per_section = numpoints_per_section,
+            return_stitches = true,
+        )
+
+        # Get the accumulated distance and things needed for plotting
+        distances, xticks_labels, xticks_pos =
+            path_to_xaxis(qpoints, stitches, sympoints, sympoint_labels)
+
+        new(qpoints, distances, xticks_pos, xticks_labels)
+    end
+end
+
 function read_highsympath(file::AbstractString)
     sympathfile = open(file)
     numlines = parse(Int64, readline(sympathfile))
