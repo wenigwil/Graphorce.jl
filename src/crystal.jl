@@ -28,7 +28,8 @@ end
 
 """
 Sample the Brillouin Zone in crystal coordinates that go from 0 to 1. Should be used
-to sample the Brillouin Zone in combination with `calc_reciprocal_lattvecs`.
+to sample the Brillouin Zone in combination with `calc_reciprocal_lattvecs()` which
+will convert the sampled points to cartesian coordinates
 
 # Output
 
@@ -36,9 +37,9 @@ to sample the Brillouin Zone in combination with `calc_reciprocal_lattvecs`.
     1-cube.
 """
 function sample_cube(sampling::Tuple{Int64,Int64,Int64})::Matrix{Float64}
+    # Sample a cube by dividing all axis in chunks between 0 and 1
     points_cryst = Matrix{Float64}(undef, (3, prod(sampling .+ 1)))
 
-    # Sample a cube by dividing all axis in chunks between 0 and 1
     iq = 0
     for i in 0:sampling[1]
         for j in 0:sampling[2]
@@ -52,40 +53,4 @@ function sample_cube(sampling::Tuple{Int64,Int64,Int64})::Matrix{Float64}
     end
 
     return points_cryst
-end
-
-"""
-Calculate the q-vectors in crystal coordinates for the third phonon in both 3-phonon
-processes using the conservation of momentum. `q1` is intended to be sampled along
-a symmetry path and `q2` comes from the full Brillouin zone
-
-For the absorption it must be that `q3 = (q1 + q2) mod G` and for the emission it
-must be that `q3 = (q1 - q2) mod G` where `mod G` wraps beyond the Brillouin Zone
-boundaries.
-"""
-function fill_q3!(
-    q1_cryst::Matrix{Float64},
-    q2_cryst::Matrix{Float64},
-    q3_emission::Matrix{Float64},
-    q3_absorption::Matrix{Float64},
-)::Matrix{Float64}
-    iq3 = 0
-    for iq1 in axes(q1_cryst)
-        for iq2 in axes(q2_cryst)
-            iq3 += 1
-            q3_emission[:, iq3] =
-                mod.(
-                    view(q1_cryst, :, iq1) + view(q2_cryst, :, iq2),
-                    ones(Float64, 3),
-                )
-
-            q3_absorption[:, iq3] =
-                mod.(
-                    view(q1_cryst, :, iq1) - view(q2_cryst, :, iq2),
-                    ones(Float64, 3),
-                )
-        end
-    end
-
-    return
 end

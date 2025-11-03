@@ -61,3 +61,39 @@ function snap_to_lattvecs!(
 
     return
 end
+
+"""
+Calculate the q-vectors in crystal coordinates for the third phonon in both 3-phonon
+processes using the conservation of momentum. `q1` is intended to be sampled along
+a symmetry path and `q2` comes from the full Brillouin zone
+
+For the absorption it must be that `q3 = (q1 + q2) mod G` and for the emission it
+must be that `q3 = (q1 - q2) mod G` where `mod G` wraps beyond the Brillouin Zone
+boundaries.
+"""
+function fill_q3!(
+    q1_cryst::Matrix{Float64},
+    q2_cryst::Matrix{Float64},
+    q3_emission::Matrix{Float64},
+    q3_absorption::Matrix{Float64},
+)::Matrix{Float64}
+    iq3 = 0
+    for iq1 in axes(q1_cryst)
+        for iq2 in axes(q2_cryst)
+            iq3 += 1
+            q3_emission[:, iq3] =
+                mod.(
+                    view(q1_cryst, :, iq1) + view(q2_cryst, :, iq2),
+                    ones(Float64, 3),
+                )
+
+            q3_absorption[:, iq3] =
+                mod.(
+                    view(q1_cryst, :, iq1) - view(q2_cryst, :, iq2),
+                    ones(Float64, 3),
+                )
+        end
+    end
+
+    return
+end

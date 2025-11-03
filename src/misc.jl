@@ -1,16 +1,6 @@
-# # Method of isspace that accepts strings
-# function Base.isspace(word::AbstractString)
-#     for i in word
-#         if !isspace(i)
-#             return false
-#         end
-#     end
-#     return true
-# end
-
 struct Sympath
-    path_qpoints::Matrix{Float64}
-    path_distances::Vector{Float64}
+    qpoints::Matrix{Float64}
+    distances::Vector{Float64}
     xticks_pos::Vector{Float64}
     xticks_labels::Vector{String}
 
@@ -34,20 +24,6 @@ struct Sympath
 
         new(qpoints, distances, xticks_pos, xticks_labels)
     end
-end
-
-function read_highsympath(file::AbstractString)
-    sympathfile = open(file)
-    numlines = parse(Int64, readline(sympathfile))
-
-    sympath = Matrix{Float64}(undef, (numlines, 3))
-    for line in 1:numlines
-        test = parse.(Float64, split(readline(sympathfile)))
-        sympath[line, :] = test
-    end
-
-    close(sympathfile)
-    return sympath
 end
 
 """

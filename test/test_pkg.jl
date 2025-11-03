@@ -1,4 +1,5 @@
 import Plots;
+using BenchmarkTools;
 Plots.pgfplotsx();
 using Graphorce
 
@@ -18,15 +19,20 @@ seek_path_1 = seek_path_points[[1, 6, 4], :]
 seek_path_2 = seek_path_points[[2, 1, 3, 5, 6, 7], :]
 
 # Read-in the main description of the system
+@info "Reading input.nml..."
 ebinput = ebInputData("examples/input.nml")
 
 # Construct a ifc2-deconvolution based on the system description
+@info "Calculating deconvolution..."
 deconvolution = DeconvData(ebinput)
 
 # Read-in the second order force-constants
+@info "Reading ifc2..."
 qeinput = qeIfc2Output("examples/espresso.ifc2")
 
 # Construct a qpoint list from a path and supply it with things to make it plottable
+@info "Building path..."
+
 sympath = Sympath(
     seek_path_points,
     point_labels,
@@ -34,34 +40,38 @@ sympath = Sympath(
     seek_path_2;
     numpoints_per_section = 50,
 )
+
+print("Generated a path of length", size(sympath.qpoints), "\n")
+
 # Main computation of the harmonic phonon properties
-lattvibr = LatticeVibrations(ebinput, qeinput, deconvolution, sympath.path_qpoints);
+@info "Calculating Lattice Vibrations..."
+lattvibr = LatticeVibrations(ebinput, qeinput, deconvolution, sympath.qpoints);
 
-extra_dict =
-    Dict("tick style" => "thick", "xtick pos" => "left", "ytick pos" => "left")
-
-# Making the names alittle shorter
-distances = sympath.path_distances
-freqs = lattvibr.fullq_freqs
-
-p = Plots.plot(
-    distances,
-    freqs;
-    legend_position = false,
-    grid = false,
-    xlims = (minimum(distances), maximum(distances)),
-    ylims = (minimum(freqs), 1.05 * maximum(freqs)),
-    framestyle = :box,
-    tickdirection = :out,
-    color = :blue,
-    lw = 0.7,
-    xticks = (sympath.xticks_pos, sympath.xticks_labels),
-    ylabel = "Frequency ω [THz]",
-    tex_output_standalone = true,
-    xtickfontsize = 12,
-    ytickfontsize = 12,
-    extra_kwargs = Dict(:subplot => extra_dict),
-)
-
-Plots.vline!(sympath.xticks_pos[2:(end - 1)], lc = :black, lw = 0.9)
-Plots.savefig("phonon-disp.pdf")
+# extra_dict =
+#     Dict("tick style" => "thick", "xtick pos" => "left", "ytick pos" => "left")
+#
+# # Making the names alittle shorter
+# distances = sympath.distances
+# freqs = lattvibr.fullq_freqs
+#
+# p = Plots.plot(
+#     distances,
+#     freqs;
+#     legend_position = false,
+#     grid = false,
+#     xlims = (minimum(distances), maximum(distances)),
+#     ylims = (minimum(freqs), 1.05 * maximum(freqs)),
+#     framestyle = :box,
+#     tickdirection = :out,
+#     color = :blue,
+#     lw = 0.7,
+#     xticks = (sympath.xticks_pos, sympath.xticks_labels),
+#     ylabel = "Frequency ω [THz]",
+#     tex_output_standalone = true,
+#     xtickfontsize = 12,
+#     ytickfontsize = 12,
+#     extra_kwargs = Dict(:subplot => extra_dict),
+# )
+#
+# Plots.vline!(sympath.xticks_pos[2:(end - 1)], lc = :black, lw = 0.9)
+# Plots.savefig("phonon-disp.pdf")

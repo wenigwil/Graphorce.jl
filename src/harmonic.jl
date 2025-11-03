@@ -1,24 +1,13 @@
 struct LatticeVibrations
     fullq_freqs::Matrix{Float64}
     eigdisplacement::Array{ComplexF64,3}
-    # qpoints_cryst::Matrix{Float64}
-    # stitches::BitVector
 
     function LatticeVibrations(
         ebdata::ebInputData,
         qedata::qeIfc2Output,
         deconvolution::DeconvData,
         qpoints_cryst::Matrix{Float64},
-        # highsympoints_cryst...;
-        # numpoints_per_section::Int64 = 50,
     )
-        # # Read necessary data from file for computation
-        # qpoints_cryst, stitches = points_to_path(
-        #     highsympoints_cryst...;
-        #     numpoints_per_section = numpoints_per_section,
-        #     return_stitches = true,
-        # )
-        #
         lattvecs = ebdata.crystal_info["lattvecs"]
         basisatoms2species = ebdata.crystal_info["atomtypes"]
         species2masses = ebdata.crystal_info["masses"]
