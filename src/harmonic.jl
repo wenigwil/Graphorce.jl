@@ -41,7 +41,7 @@ struct LatticeVibrations
 
         qpoints_cart = qpoints_cryst * permutedims(reclattvecs)
 
-        for iq in axes(qpoints_cryst, 1)
+        Threads.@threads for iq in axes(qpoints_cryst, 1)
             # print_progress(iq, numqpoints, 0.05)
             dynmat = build_dynamical_matrix(
                 weightmap,
@@ -106,9 +106,9 @@ function build_dynamical_matrix(
     for iat in 1:numatoms
         for jat in 1:numatoms
             for icart in 1:3
-                i = mux2to1(iat, icart)
+                i = mux2to1(iat, icart, 3)
                 for jcart in 1:3
-                    j = mux2to1(jat, jcart)
+                    j = mux2to1(jat, jcart, 3)
 
                     for l in 1:numunitpoints
                         if weightmap[l, jat, iat] > 0
@@ -149,8 +149,8 @@ Mux two indeces into one. This is only a valid muxing method for 1-based indices
 
 A very old man told me, it was a good idea.
 """
-function mux2to1(i::Int64, j::Int64)
-    return (i - 1) * 3 + j
+function mux2to1(i::Int64, j::Int64, maxj::Int64)
+    return (i - 1) * maxj + j
 end
 
 """

@@ -71,15 +71,35 @@ struct Phonons
         # Convert to cartesian coordinates
         q3_emission = q3_emission * permutedims(reclattvecs)
         q3_absorption = q3_absorption * permutedims(reclattvecs)
-
-        @info "Total number of qpoints is..." numq1 + numq2 +2 * numq1 * numq2
+        numq3 = numq1 * numq2
+        numallq = numq1 + numq2 + 2 * numq1 * numq2
+        @info "Total number of qpoints is..." numallq
 
         # Put it all together for eigenvector calculation
         # Stacked vertically (dim = 1) in order q1 then q2 then q3_e then q3_a
         allq = vcat(q1_cart, q2_cart, q3_emission, q3_absorption)
 
         @info "Calculating all eigenvectors and frequencies..."
-        LatticeVibrations(ebdata, sodata, deconvolution, allq)
+        harmonic = LatticeVibrations(ebdata, sodata, deconvolution, allq)
+
+        # Split it apart again
+        q1_freqs = view(harmonic.fullq_freqs, 1:numq1, :)
+        q2_freqs = view(harmonic.fullq_freqs, (numq1 + 1):numq2, :)
+        q3_emission_freqs = view(harmonic.fullq_freqs, (numq2 + 1):numq3, :)
+        q3_absorption_freqs = view(harmonic.fullq_freqs, (numq3 + 1):numallq, :)
+
+        q1_eigvecs = view(harmonic.eigdisplacement, 1:numq1, :, :)
+        q2_eigvecs = view(harmonic.eigdisplacement, (numq1 + 1):numq2, :, :)
+        q3_emission_eigvecs = view(harmonic.eigdisplacement, (numq2 + 1):numq3, :, :)
+        q3_absorption_eigvecs =
+            view(harmonic.eigdisplacement, (numq3 + 1):numallq, :, :)
+
+        # Reshaping conforms with mux2to1(branch_index,q_index,max(q_index))
+        # TODO: reshape the frequencies using reshape(freqs, numq*3*numatoms)
+        # TODO: write a function to reshape the eigvecs
+        # NOTE: For the eigvecs-reshaping the collective cartesian-atom dimension 
+        # must be split and then the branch and q-point dimension put together
+        # Fancy speech: cartian-atom matricisation and branch-qpoint vectorisation
     end
 end
 
