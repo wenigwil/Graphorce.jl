@@ -29,29 +29,38 @@ struct LatticeVibrations
 
         fullq_freqs = Matrix{Float64}(undef, (numqpoints, 3 * numatoms))
         eigdisplacement =
-            Array{ComplexF64,3}(undef, (3 * numatoms, 3 * numatoms, numqpoints))
+            Array{ComplexF64,3}(undef, (numqpoints, 3 * numatoms, 3 * numatoms))
+
+        # These things are factored out so it won't be recomputed a lot
+        mass_prefactor = build_mass_prefactor(basisatoms2species, species2masses)
+
+        # Lattvecs are given in nm we need the reclattvecs in bohr
+        # Reciprocal lattice vectors have units of 1/length such that a 
+        # multiplication with the Bohr-radius in nm will convert from 1/nm to 1/bohr
+        reclattvecs = calc_reciprocal_lattvecs(lattvecs) * a0_nm
+
+        qpoints_cart = qpoints_cryst * permutedims(reclattvecs)
+
         for iq in axes(qpoints_cryst, 1)
+            # print_progress(iq, numqpoints, 0.05)
             dynmat = build_dynamical_matrix(
                 weightmap,
                 uqf,
                 unitpoints_cart,
-                lattvecs,
                 ifc2,
-                basisatoms2species,
-                species2masses,
-                qpoints_cryst[iq, :],
+                mass_prefactor,
+                qpoints_cart[iq, :],
             )
 
-            force_hermiticity!(dynmat)
-
-            dynmat = LinAlg.Hermitian(dynmat)
+            # Forcing the dynamical matrix to be hermitian
+            dynmat = LinAlg.Hermitian(0.5 .* (dynmat + dynmat'))
 
             eigvals, eigvecs = LinAlg.eigen(dynmat)
 
             # Eigenvalues are the squared eigenfrequencies of the system
             fullq_freqs[iq, :] = copysign.(sqrt.(abs.(eigvals)), eigvals)
             # According to Togo eq (6) and (7) the eigvecs just stay normalized
-            eigdisplacement[:, :, iq] = eigvecs
+            eigdisplacement[iq, :, :] = eigvecs
 
             if iszero(qpoints_cryst[iq, :])
                 fullq_freqs[iq, 1:3] .= [0.0, 0.0, 0.0]
@@ -86,24 +95,14 @@ function build_dynamical_matrix(
     weightmap::Array{Float64,3},
     uqf::Array{Int64,4},
     unitpoints_cart::Matrix{Float64},
-    lattvecs::Matrix{Float64},
     ifc2::Array{Float64,7},
-    basisatom2species::Vector{Int64},
-    species2mass::Vector{Float64},
-    qpoint_cryst::Vector{Float64},
+    mass_prefactor::Matrix{Float64},
+    qpoint_cart::Vector{Float64},
 )
-    numatoms = size(basisatom2species, 1)
+    numatoms = size(mass_prefactor, 1)
     dynmat = zeros(ComplexF64, (3 * numatoms, 3 * numatoms))
     numunitpoints = size(unitpoints_cart, 1)
 
-    # Lattvecs are given in nm we need the reclattvecs in bohr
-    # Reciprocal lattice vectors have units of 1/length such that a 
-    # multiplication with the Bohr-radius in nm will convert from 1/nm to 1/bohr
-    reclattvecs = calc_reciprocal_lattvecs(lattvecs) * a0_nm
-
-    qpoint_cart = reclattvecs * qpoint_cryst
-
-    mass_prefactor = build_mass_prefactor(basisatom2species, species2mass)
     for iat in 1:numatoms
         for jat in 1:numatoms
             for icart in 1:3
@@ -113,7 +112,7 @@ function build_dynamical_matrix(
 
                     for l in 1:numunitpoints
                         if weightmap[l, jat, iat] > 0
-                            dynmat[i, j] += begin
+                            @inbounds dynmat[i, j] += @views begin
                                 ifc2[
                                     icart,
                                     jcart,
@@ -134,7 +133,7 @@ function build_dynamical_matrix(
                         end
                     end
 
-                    dynmat[i, j] /= mass_prefactor[iat, jat]
+                    @inbounds dynmat[i, j] /= mass_prefactor[iat, jat]
                 end
             end
         end
@@ -204,9 +203,10 @@ function enforce_acoustic_sum_rule!(ifc2_tensor::Array{Float64,7})
     for i in 1:3
         for j in 1:3
             for iat in 1:nat
-                full_sum = sum(ifc2_tensor[i, j, iat, :, :, :, :])
-                ifc2_tensor[i, j, iat, iat, 1, 1, 1] =
+                full_sum = @views sum(ifc2_tensor[i, j, iat, :, :, :, :])
+                ifc2_tensor[i, j, iat, iat, 1, 1, 1] = @views begin
                     ifc2_tensor[i, j, iat, iat, 1, 1, 1] - full_sum
+                end
             end
         end
     end

@@ -34,20 +34,20 @@ will convert the sampled points to cartesian coordinates
 # Output
 
   - `points_cryst::Matrix{Float64}`: A list of uniformly sampled vectors from a
-    1-cube.
+    1-cube. `points_cryst[i,:]` yields the `i`-th vector.
 """
 function sample_cube(sampling::Tuple{Int64,Int64,Int64})::Matrix{Float64}
     # Sample a cube by dividing all axis in chunks between 0 and 1
-    points_cryst = Matrix{Float64}(undef, (3, prod(sampling .+ 1)))
+    points_cryst = Matrix{Float64}(undef, (prod(sampling .+ 1), 3))
 
     iq = 0
     for i in 0:sampling[1]
         for j in 0:sampling[2]
             for k in 0:sampling[3]
                 iq += 1
-                points_cryst[1, iq] = (i / sampling[1])
-                points_cryst[2, iq] = (j / sampling[2])
-                points_cryst[3, iq] = (k / sampling[3])
+                points_cryst[iq, 1] = (i / sampling[1])
+                points_cryst[iq, 2] = (j / sampling[2])
+                points_cryst[iq, 3] = (k / sampling[3])
             end
         end
     end
