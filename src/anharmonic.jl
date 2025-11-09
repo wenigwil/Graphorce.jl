@@ -8,6 +8,7 @@ struct Phonons
         bz_sampling::Tuple{Int64,Int64,Int64} = (30, 30, 30),
     )
         # System description
+        numatoms = ebdata.allocations["numatoms"]
         type2mass = ebdata.crystal_info["masses"]
         atindex2type = ebdata.crystal_info["atomtypes"]
         # The lattice vectors are in nm when they come out of the input.nml
@@ -82,24 +83,32 @@ struct Phonons
         @info "Calculating all eigenvectors and frequencies..."
         harmonic = LatticeVibrations(ebdata, sodata, deconvolution, allq)
 
-        # Split it apart again
+        # Split it apart again reshape
         q1_freqs = view(harmonic.fullq_freqs, 1:numq1, :)
+        q1_freqs = reshape(q1_freqs, (numq1 * 3 * numatoms))
         q2_freqs = view(harmonic.fullq_freqs, (numq1 + 1):numq2, :)
+        q2_freqs = reshape(q2_freqs, (numq2 * 3 * numatoms))
         q3_emission_freqs = view(harmonic.fullq_freqs, (numq2 + 1):numq3, :)
+        q3_emission_freqs = reshape(q3_emission_freqs, (numq3 * 3 * numatoms))
         q3_absorption_freqs = view(harmonic.fullq_freqs, (numq3 + 1):numallq, :)
+        q3_absorption_freqs = reshape(q3_absorption_freqs, (numq3 * 3 * numatoms))
 
-        q1_eigvecs = view(harmonic.eigdisplacement, 1:numq1, :, :)
-        q2_eigvecs = view(harmonic.eigdisplacement, (numq1 + 1):numq2, :, :)
-        q3_emission_eigvecs = view(harmonic.eigdisplacement, (numq2 + 1):numq3, :, :)
+        # TODO: Now the eigenvectors are in the form of eigvecs[iq,s,α,k] and we only 
+        # have to reshape them into eigvecs[λ,α,k]. This 
+        q1_eigvecs = view(harmonic.eigdisplacement, 1:numq1, :, :, :)
+        q1_eigvecs = reshape(q1_eigvecs, (numq1 * 3 * numatoms, 3, numatoms))
+        q2_eigvecs = view(harmonic.eigdisplacement, (numq1 + 1):numq2, :, :, :)
+        q2_eigvecs = reshape(q1_eigvecs, (numq2 * 3 * numatoms, 3, numatoms))
+
+        q3_emission_eigvecs =
+            view(harmonic.eigdisplacement, (numq2 + 1):numq3, :, :, :)
+        q3_emission_eigvecs =
+            reshape(q3_emission_eigvecs, (numq3 * 3 * numatoms, 3, numatoms))
+
         q3_absorption_eigvecs =
-            view(harmonic.eigdisplacement, (numq3 + 1):numallq, :, :)
-
-        # Reshaping conforms with mux2to1(branch_index,q_index,max(q_index))
-        # TODO: reshape the frequencies using reshape(freqs, numq*3*numatoms)
-        # TODO: write a function to reshape the eigvecs
-        # NOTE: For the eigvecs-reshaping the collective cartesian-atom dimension 
-        # must be split and then the branch and q-point dimension put together
-        # Fancy speech: cartian-atom matricisation and branch-qpoint vectorisation
+            view(harmonic.eigdisplacement, (numq3 + 1):numallq, :, :, :)
+        q3_absorption_eigvecs =
+            reshape(q3_absorption_eigvecs, (numq3 * 3 * numatoms, 3, numatoms))
     end
 end
 

@@ -1,6 +1,6 @@
 struct LatticeVibrations
     fullq_freqs::Matrix{Float64}
-    eigdisplacement::Array{ComplexF64,3}
+    eigdisplacement::Array{ComplexF64,4}
 
     function LatticeVibrations(
         ebdata::ebInputData,
@@ -8,6 +8,7 @@ struct LatticeVibrations
         deconvolution::DeconvData,
         qpoints_cryst::Matrix{Float64},
     )
+        numatoms = ebdata.allocations["numatoms"]
         lattvecs = ebdata.crystal_info["lattvecs"]
         basisatoms2species = ebdata.crystal_info["atomtypes"]
         species2masses = ebdata.crystal_info["masses"]
@@ -23,13 +24,13 @@ struct LatticeVibrations
         species2masses = species2masses * m_u / (2 * m_e)
 
         numqpoints = size(qpoints_cryst, 1)
-        numatoms = size(basisatoms2species, 1)
 
         enforce_acoustic_sum_rule!(ifc2)
 
         fullq_freqs = Matrix{Float64}(undef, (numqpoints, 3 * numatoms))
+        # eigdisplacement[iq, branch, icart, iat]
         eigdisplacement =
-            Array{ComplexF64,3}(undef, (numqpoints, 3 * numatoms, 3 * numatoms))
+            Array{ComplexF64,4}(undef, (numqpoints, 3 * numatoms, 3, numatoms))
 
         # These things are factored out so it won't be recomputed a lot
         mass_prefactor = build_mass_prefactor(basisatoms2species, species2masses)
@@ -55,12 +56,21 @@ struct LatticeVibrations
             # Forcing the dynamical matrix to be hermitian
             dynmat = LinAlg.Hermitian(0.5 .* (dynmat + dynmat'))
 
+            # This will return the eigenvalues and the diagonalizer of dynmat which 
+            # is made up of column-eigenvectors. eigvecs[:,i] will yield the i-th 
+            # eigenvector made up of 3*numatoms elements. 
             eigvals, eigvecs = LinAlg.eigen(dynmat)
+
+            # First put the branch index in front and then demux cartesian and 
+            # atomindex. In the muxing the cartesian index was the faster one so it 
+            # will appear in as the first index of the new array after the branch 
+            # index
+            eigvecs = reshape(permutedims(eigvecs), (3 * numatoms, 3, numatoms))
 
             # Eigenvalues are the squared eigenfrequencies of the system
             fullq_freqs[iq, :] = copysign.(sqrt.(abs.(eigvals)), eigvals)
             # According to Togo eq (6) and (7) the eigvecs just stay normalized
-            eigdisplacement[iq, :, :] = eigvecs
+            eigdisplacement[iq, :, :, :] = eigvecs
 
             if iszero(qpoints_cryst[iq, :])
                 fullq_freqs[iq, 1:3] .= [0.0, 0.0, 0.0]
@@ -149,8 +159,8 @@ Mux two indeces into one. This is only a valid muxing method for 1-based indices
 
 A very old man told me, it was a good idea.
 """
-function mux2to1(i::Int64, j::Int64, maxj::Int64)
-    return (i - 1) * maxj + j
+function mux2to1(slow::Int64, fast::Int64, maxfast::Int64)
+    return (slow - 1) * maxfast + fast
 end
 
 """
