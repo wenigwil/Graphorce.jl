@@ -47,13 +47,18 @@ struct Phonons
         @info "Converting the supplied q1 to cartesian coordinates..."
         # Get the q1 in cartesian coordinates
         q1_cart = q1_cryst * permutedims(reclattvecs)
-        numq1 = size(q1_cart, 1)
 
         @info "Building uniformly sampled Brioullin Zone..."
         # Build the q2 by sampling the Brillouin Zone first in crystal coordinates
         # and then converting to cartesian
         q2_cryst = sample_cube(bz_sampling)
+
+        numq1 = size(q1_cart, 1)
         numq2 = size(q2_cryst, 1)
+        numq12 = numq1 + numq2
+        numq3 = numq1 * numq2
+        numq123 = numq12 + numq3
+        numallq = numq12 + 2 * numq3
 
         @info "Converting the calculated q2 to cartesian coordinates..."
         # q2_cryst[i,:] yields the i-th q2, so that we have to transpose
@@ -61,7 +66,8 @@ struct Phonons
 
         @info """
         Building q3s for emission and absorption process...
-            """ numq1 numq2 (numq1 * numq2)
+            """ numq1 numq2 numq3
+        @info "Total number of qpoints is..." numallq
         # Now we will compute the both sets of q3 for absorption and emission
         # For the absorption we have q3 = ( q1 + q2 ) mod G
         # For the emission we have q3 = ( q1 - q2 ) mod G
@@ -72,9 +78,6 @@ struct Phonons
         # Convert to cartesian coordinates
         q3_emission = q3_emission * permutedims(reclattvecs)
         q3_absorption = q3_absorption * permutedims(reclattvecs)
-        numq3 = numq1 * numq2
-        numallq = numq1 + numq2 + 2 * numq1 * numq2
-        @info "Total number of qpoints is..." numallq
 
         # Put it all together for eigenvector calculation
         # Stacked vertically (dim = 1) in order q1 then q2 then q3_e then q3_a
@@ -83,33 +86,51 @@ struct Phonons
         @info "Calculating all eigenvectors and frequencies..."
         harmonic = LatticeVibrations(ebdata, sodata, deconvolution, allq)
 
-        # Split it apart again reshape
+        # Split it apart again and reshape
+        # Frequency reshaping goes from ω[iq,branch] to ω[λ]
         q1_freqs = view(harmonic.fullq_freqs, 1:numq1, :)
         q1_freqs = reshape(q1_freqs, (numq1 * 3 * numatoms))
-        q2_freqs = view(harmonic.fullq_freqs, (numq1 + 1):numq2, :)
+
+        q2_freqs = view(harmonic.fullq_freqs, (numq1 + 1):numq12, :)
         q2_freqs = reshape(q2_freqs, (numq2 * 3 * numatoms))
-        q3_emission_freqs = view(harmonic.fullq_freqs, (numq2 + 1):numq3, :)
+
+        q3_emission_freqs = view(harmonic.fullq_freqs, (numq12 + 1):numq123, :)
         q3_emission_freqs = reshape(q3_emission_freqs, (numq3 * 3 * numatoms))
-        q3_absorption_freqs = view(harmonic.fullq_freqs, (numq3 + 1):numallq, :)
+
+        q3_absorption_freqs = view(harmonic.fullq_freqs, (numq123 + 1):numallq, :)
         q3_absorption_freqs = reshape(q3_absorption_freqs, (numq3 * 3 * numatoms))
 
-        # TODO: Now the eigenvectors are in the form of eigvecs[iq,s,α,k] and we only 
-        # have to reshape them into eigvecs[λ,α,k]. This 
+        # Eigenvector reshaping goes from eigvecs[iq,branch,α,k] to eigvecs[λ,α,k]
+        # where λ conforms with mux2to1(s,iq,numq) from misc.jl 
         q1_eigvecs = view(harmonic.eigdisplacement, 1:numq1, :, :, :)
         q1_eigvecs = reshape(q1_eigvecs, (numq1 * 3 * numatoms, 3, numatoms))
-        q2_eigvecs = view(harmonic.eigdisplacement, (numq1 + 1):numq2, :, :, :)
+
+        q2_eigvecs = view(harmonic.eigdisplacement, (numq1 + 1):numq12, :, :, :)
         q2_eigvecs = reshape(q1_eigvecs, (numq2 * 3 * numatoms, 3, numatoms))
 
         q3_emission_eigvecs =
-            view(harmonic.eigdisplacement, (numq2 + 1):numq3, :, :, :)
+            view(harmonic.eigdisplacement, (numq12 + 1):numq123, :, :, :)
         q3_emission_eigvecs =
             reshape(q3_emission_eigvecs, (numq3 * 3 * numatoms, 3, numatoms))
 
         q3_absorption_eigvecs =
-            view(harmonic.eigdisplacement, (numq3 + 1):numallq, :, :, :)
+            view(harmonic.eigdisplacement, (numq123 + 1):numallq, :, :, :)
         q3_absorption_eigvecs =
             reshape(q3_absorption_eigvecs, (numq3 * 3 * numatoms, 3, numatoms))
     end
+end
+
+"""
+Calculate the interaction strength Vplus of the absorption process for three-phonon
+scattering. The interaction strengths are indexed by three the phonon-state indices
+λ, λ' and λ". Each index is the result of multiplexing the q-point index `iq` and the
+branch index `s` using the `mux2to1(s,iq,numq)`-function.
+
+# Arguments
+
+# Output
+"""
+function calc_Vplus_per_λ()
 end
 
 """

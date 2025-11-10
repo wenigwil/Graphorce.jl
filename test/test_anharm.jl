@@ -21,11 +21,18 @@ seek_path_points = [
     0.5 0.0 0.5
     0.75 0.25 0.5
 ]
-# Walk the walk.
+# Walk the walk. Only small for now
 route = seek_path_points[[2, 1, 3], :]
 sympath = Sympath(seek_path_points, point_labels, route; numpoints_per_section = 50)
 
 # Read a phonopy ifc3 file
 todata = Ifc3Output("examples/force.fc3")
 
-phonons = Phonons(ebdata, deconvolution, sodata, todata, sympath.qpoints)
+phonons = Phonons(
+    ebdata,
+    deconvolution,
+    sodata,
+    todata,
+    sympath.qpoints;
+    bz_sampling = (10, 10, 10),
+)

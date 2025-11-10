@@ -263,3 +263,15 @@ function print_progress(current_index::Int64, max_index::Int64, step::Float64)
     end
     return
 end
+
+"""
+    mux2to1(slow::Int64, fast::Int64, maxfast::Int64)
+
+Mux two indeces into one. This is only a valid muxing method for 1-based indices. The
+builtin julia method reshape() conforms with this function.
+
+A very old man told me, it was a good idea.
+"""
+function mux2to1(slow::Int64, fast::Int64, maxfast::Int64)
+    return (slow - 1) * maxfast + fast
+end

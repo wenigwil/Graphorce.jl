@@ -42,6 +42,11 @@ struct LatticeVibrations
 
         qpoints_cart = qpoints_cryst * permutedims(reclattvecs)
 
+        @info """
+        LatticeVibration Constructor: Beginning parallel computation of eigenvectors 
+        and frequencies...
+        """ size(qpoints_cryst)
+
         Threads.@threads for iq in axes(qpoints_cryst, 1)
             # print_progress(iq, numqpoints, 0.05)
             dynmat = build_dynamical_matrix(
@@ -150,17 +155,6 @@ function build_dynamical_matrix(
     end
 
     return dynmat
-end
-
-"""
-    mux2to1(i::Int64, j::Int64)
-
-Mux two indeces into one. This is only a valid muxing method for 1-based indices.
-
-A very old man told me, it was a good idea.
-"""
-function mux2to1(slow::Int64, fast::Int64, maxfast::Int64)
-    return (slow - 1) * maxfast + fast
 end
 
 """
