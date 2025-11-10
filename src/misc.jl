@@ -275,3 +275,12 @@ A very old man told me, it was a good idea.
 function mux2to1(slow::Int64, fast::Int64, maxfast::Int64)
     return (slow - 1) * maxfast + fast
 end
+
+"""
+Reverse `mux2to1(slow,fast,maxfast)`.
+"""
+function demux1to2(k::Int64, maxfast::Int64)::Tuple{Int64,Int64}
+    fast = mod1(k, maxfast)
+    slow = div(k - fast, maxfast, RoundDown) + 1
+    return slow, fast
+end

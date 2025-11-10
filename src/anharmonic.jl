@@ -27,12 +27,12 @@ struct Phonons
 
         # We will include a mass normalization into the ifc3
         @info "Mass-normalizing the ifc3..."
-        for itrip in 1:numtriplets
-            ifc3_tensor[:, :, :, itrip] ./= begin
+        for itrip in axes(ifc3_tensor, 1)
+            ifc3_tensor[itrip, :, :, :] ./= begin
                 sqrt(
-                    type2mass[atindex2type[trip2atomindeces[1, itrip]]] *
-                    type2mass[atindex2type[trip2atomindeces[2, itrip]]] *
-                    type2mass[atindex2type[trip2atomindeces[3, itrip]]],
+                    type2mass[atindex2type[trip2atomindeces[itrip, 1]]] *
+                    type2mass[atindex2type[trip2atomindeces[itrip, 2]]] *
+                    type2mass[atindex2type[trip2atomindeces[itrip, 3]]],
                 )
             end
         end
@@ -121,7 +121,7 @@ struct Phonons
 end
 
 """
-Calculate the interaction strength Vplus of the absorption process for three-phonon
+Calculate the interaction strength V for a three-phonon process (absorption or emission)
 scattering. The interaction strengths are indexed by three the phonon-state indices
 λ, λ' and λ". Each index is the result of multiplexing the q-point index `iq` and the
 branch index `s` using the `mux2to1(s,iq,numq)`-function.
@@ -130,12 +130,55 @@ branch index `s` using the `mux2to1(s,iq,numq)`-function.
 
 # Output
 """
-function calc_Vplus_per_λ()
+function calc_V(
+    λ::Int64,
+    λ′::Int64,
+    λ′′::Int64,
+    q2::Matrix{Float64},
+    q3::Matrix{Float64},
+    q1_eigvecs::Array{ComplexF64,3},
+    q2_eigvecs::Array{ComplexF64,3},
+    q3_eigvecs::Array{ComplexF64,3},
+    ifc3_tensor::Array{Float64,3},
+    trip2atomindices::Matrix{Int64},
+    trip2position_j::Matrix{Float64},
+    trip2position_k::Matrix{Float64},
+)
+    # Get a view of the relevant eigenvectors as W_λ[cart_index, atom_index]
+    W_λ = view(q1_eigvecs, λ, :, :)
+    W_λ′ = view(q2_eigvecs, λ′, :, :)
+    W_λ′′ = view(q3_eigvecs, λ′′, :, :)
+
+    # Get the q-points corresponding to λ′ and λ′′
+    # we need 
+    q′′ = view(q3, demux1to2(λ′′, size(W_λ′′, 1))[2], :)
+    q′ = view(q2, demux1to2(λ′, size(W_λ′, 1))[2], :)
+
+    V = 0.0 + im * 0.0
+    for α in axes(W_λ, 1)
+        for α′ in axes(W_λ′, 1)
+            for α′′ in axes(W_λ′′, 1)
+                for itrip in axes(ifc3_tensor, 1)
+                    V += @views begin
+                        W_λ[α, trip2atomindices[itrip, 1]] *
+                        W_λ′[α′, trip2atomindices[itrip, 2]] *
+                        W_λ′′[α′′, trip2atomindices[itrip, 3]] *
+                        ifc3_tensor[itrip, α, α′, α′′] *
+                        exp(im * LinAlg.dot(q′, trip2position_j[itrip, :])) *
+                        exp(im * LinAlg.dot(q′′, trip2position_k[itrip, :]))
+                    end
+                end
+            end
+        end
+    end
+
+    return V
 end
 
 """
 Snapping positions such that their coordinates are the result of an linear
-combination of integer multiples of basisvectors from given lattice vectors.
+combination of integer multiples of basisvectors from given lattice vectors. It is
+assumed that `positions[i,:]` will yield the `i`-th position.
 
 Lattice Vectors have to be in the form `lattvecs = [ a1 a2 a3 ]`
 """
@@ -145,10 +188,11 @@ function snap_to_lattvecs!(lattvecs::Matrix{Float64}, positions::Matrix{Float64}
 
     # Getting the positions in fractional coordinates as integers
     # Rounding like fortrans `anint()`. Ties are rounded away from zero
-    positions_frac = round.(\(lattvecs, positions), RoundNearestTiesAway)
+    positions_frac =
+        round.(\(lattvecs, permutedims(positions)), RoundNearestTiesAway)
 
     # Overriding the original positions
-    positions = lattvecs * positions_frac
+    positions = permutedims(lattvecs * positions_frac)
 
     return
 end

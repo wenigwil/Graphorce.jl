@@ -21,14 +21,14 @@ struct Ifc3Output
         num_triplets = parse(Int64, readline(output_file))
 
         # ifc3-Tensor
-        ifc3_tensor = Array{Float64}(undef, (3, 3, 3, num_triplets))
+        ifc3_tensor = Array{Float64}(undef, (num_triplets, 3, 3, 3))
 
         # Positions of the second and third atoms that are not put into the origin
-        trip2position_j = Matrix{Float64}(undef, (3, num_triplets))
-        trip2position_k = Matrix{Float64}(undef, (3, num_triplets))
+        trip2position_j = Matrix{Float64}(undef, (num_triplets, 3))
+        trip2position_k = Matrix{Float64}(undef, (num_triplets, 3))
 
         # Atomic indices
-        trip2atomindices = Matrix{Int64}(undef, (3, num_triplets))
+        trip2atomindices = Matrix{Int64}(undef, (num_triplets, 3))
 
         # Skip one line
         readline(output_file)
@@ -38,18 +38,18 @@ struct Ifc3Output
             readline(output_file)
 
             # Positions
-            trip2position_j[:, itrip] = parse.(Float64, split(readline(output_file)))
-            trip2position_k[:, itrip] = parse.(Float64, split(readline(output_file)))
+            trip2position_j[itrip, :] = parse.(Float64, split(readline(output_file)))
+            trip2position_k[itrip, :] = parse.(Float64, split(readline(output_file)))
 
             # Atomic indices
-            trip2atomindices[:, itrip] = parse.(Int64, split(readline(output_file)))
+            trip2atomindices[itrip, :] = parse.(Int64, split(readline(output_file)))
 
             # Displacement indices and value 
             for idisp in 1:3
                 for jdisp in 1:3
                     for kdisp in 1:3
                         tmp = split(readline(output_file))
-                        ifc3_tensor[idisp, jdisp, kdisp, itrip] =
+                        ifc3_tensor[itrip, idisp, jdisp, kdisp] =
                             parse(Float64, tmp[4])
                     end
                 end
