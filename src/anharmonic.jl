@@ -1,4 +1,4 @@
-struct Phonon
+struct Phonons
     function Phonons(
         ebdata::ebInputData,
         deconvolution::DeconvData,
