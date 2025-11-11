@@ -277,10 +277,23 @@ function mux2to1(slow::Int64, fast::Int64, maxfast::Int64)
 end
 
 """
+    demux1to2(k::Int64, maxfast::Int64)::Tuple{Int64,Int64}
+
 Reverse `mux2to1(slow,fast,maxfast)`.
 """
 function demux1to2(k::Int64, maxfast::Int64)::Tuple{Int64,Int64}
     fast = mod1(k, maxfast)
     slow = div(k - fast, maxfast, RoundDown) + 1
     return slow, fast
+end
+
+"""
+Very basic delta function with fixed smearing.
+"""
+function δ(x::Float64, a::Float64; smearing::Float64)
+    return sqrt(1 / (π * smearing)) * exp.(-(a - x)^2 / smearing)
+end
+
+function bose(E::Float64, kbT::Float64)
+    return 1.0 / expm1(E / kbT)
 end
