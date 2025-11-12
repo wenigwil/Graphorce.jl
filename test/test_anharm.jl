@@ -22,17 +22,23 @@ seek_path_points = [
     0.75 0.25 0.5
 ]
 # Walk the walk. Only small for now
-route = seek_path_points[[2, 1, 3], :]
-sympath = Sympath(seek_path_points, point_labels, route; numpoints_per_section = 50)
+route = seek_path_points[[1, 3], :]
+sympath = Sympath(seek_path_points, point_labels, route; numpoints_per_section = 10)
 
 # Read a phonopy ifc3 file
 todata = Ifc3Output("examples/force.fc3")
 
+cont_freqs = collect(range(0.01, 20, 300))
+kbT = 25e-3 # 300K * k_B in eV
+smearing = 0.03
 phonons = Phonons(
     ebdata,
     deconvolution,
     sodata,
     todata,
-    sympath.qpoints;
-    bz_sampling = (10, 10, 10),
+    sympath.qpoints,
+    cont_freqs,
+    kbT,
+    smearing;
+    bz_sampling = (3, 3, 3),
 )
