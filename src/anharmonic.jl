@@ -8,14 +8,15 @@ struct Phonons
         cont_freqs::Vector{Float64},
         kbT::Float64,
         smearing::Float64;
-        bz_sampling::Tuple{Int64,Int64,Int64} = (30, 30, 30),
+        brillouin_sampling::Tuple{Int64,Int64,Int64} = (30, 30, 30),
     )
         # System description
         numatoms = ebdata.allocations["numatoms"]
         type2mass = ebdata.crystal_info["masses"]
         atindex2type = ebdata.crystal_info["atomtypes"]
-        # The lattice vectors are in nm when they come out of the input.nml
-        lattvecs = ebdata.crystal_info["lattvecs"]
+        # The lattice vectors are in nm when they come out of the input.nml but we 
+        # will do everything in Angstrom around here!
+        lattvecs = ebdata.crystal_info["lattvecs"] * 10
         reclattvecs = calc_reciprocal_lattvecs(lattvecs)
 
         # Third Order Force Constants Data
@@ -27,49 +28,7 @@ struct Phonons
         # Atomic Indices of the whole triplet
         trip2atomindeces = todata.properties["trip2atomindices"]
 
-        @info "Converting the supplied q1 to cartesian coordinates..."
-        # Get the q1 in cartesian coordinates in nm
-        q1_cart = q1_cryst * permutedims(reclattvecs)
-
-        @info "Building uniformly sampled Brioullin Zone..."
-        # Build the q2 by sampling the Brillouin Zone first in crystal coordinates
-        # and then converting to cartesian
-        q2_cryst = sample_cube(bz_sampling)
-
-        states = ThreePhononStates(q1_cryst, q2_cryst)
-
-        # Define some numbers to make future things a little shorter
-        numq1 = size(q1_cart, 1)
-        numq2 = size(q2_cryst, 1)
-        numq12 = numq1 + numq2
-        numq3 = numq1 * numq2
-        numq123 = numq12 + numq3
-        numallq = numq12 + 2 * numq3
-
-        @info "Converting the calculated q2 to cartesian coordinates..."
-        # q2_cryst[i,:] yields the i-th q2, so that we have to transpose
-        q2_cart = q2_cryst * permutedims(reclattvecs)
-
-        @info """
-        Building q3s for emission and absorption process...
-            """ numq1 numq2 numq3 numq12 numq123
-        @info "Total number of qpoints is..." numallq
-        q3_emission = Matrix{Float64}(undef, (numq1 * numq2, 3))
-        q3_absorption = Matrix{Float64}(undef, (numq1 * numq2, 3))
-        fill_q3!(q1_cryst, q2_cryst, q3_emission, q3_absorption)
-        # Convert to cartesian coordinates in 1/nm
-        q3_emission = q3_emission * permutedims(reclattvecs)
-        q3_absorption = q3_absorption * permutedims(reclattvecs)
-
-        # Put it all together for eigenvector calculation
-        # Stacked vertically (dim = 1) in order q1 then q2 then q3_e then q3_a
-        allq = vcat(q1_cart, q2_cart, q3_emission, q3_absorption)
-
-        @info "Calculating all eigenvectors and frequencies..."
-        harmonic = LatticeVibrations(ebdata, sodata, deconvolution, allq)
-
         # We will include a mass normalization into the ifc3
-        @info "Mass-normalizing the ifc3..."
         for itrip in axes(ifc3_tensor, 1)
             ifc3_tensor[itrip, :, :, :] ./= begin
                 sqrt(
@@ -80,56 +39,32 @@ struct Phonons
             end
         end
 
-        @info "Snapping read-in positions to direct lattice grid..."
         # The phonopy ifc3-file gives us the cell coordinates of the two displaced 
         # atoms. We make sure these are EXACTLY (numerics, huh) on our grid defined 
         # by the lattice vectors.
-        snap_to_lattvecs!(lattvecs, trip2position_k ./ 10)
-        snap_to_lattvecs!(lattvecs, trip2position_j ./ 10)
+        snap_to_lattvecs!(lattvecs, trip2position_k)
+        snap_to_lattvecs!(lattvecs, trip2position_j)
 
-        @info "Reshaping eigenvectors and frequencies..."
-        # Split it apart again and reshape
-        # Frequency reshaping goes from ω[iq,branch] to ω[λ]
-        # q1_freqs = view(harmonic.fullq_freqs, 1:numq1, :)
-        q1_freqs = getindex(harmonic.fullq_freqs, 1:numq1, :)
-        q1_freqs = reshape(q1_freqs, (numq1 * 3 * numatoms))
+        # Calculate and reshape the frequencies and eigenvectors of 3 phonons by a 
+        # given sampling of the brillouin zone.
+        states = HarmonicStatesData(
+            ebdata,
+            sodata,
+            deconvolution,
+            q1_cryst;
+            brillouin_sampling,
+        )
 
-        # q2_freqs = view(harmonic.fullq_freqs, (numq1 + 1):numq12, :)
-        q2_freqs = getindex(harmonic.fullq_freqs, (numq1 + 1):numq12, :)
-        q2_freqs = reshape(q2_freqs, (numq2 * 3 * numatoms))
-
-        # q3_emission_freqs = view(harmonic.fullq_freqs, (numq12 + 1):numq123, :)
-        q3_emission_freqs = getindex(harmonic.fullq_freqs, (numq12 + 1):numq123, :)
-        q3_emission_freqs = reshape(q3_emission_freqs, (numq3 * 3 * numatoms))
-
-        # q3_absorption_freqs = view(harmonic.fullq_freqs, (numq123 + 1):numallq, :)
-        q3_absorption_freqs =
-            getindex(harmonic.fullq_freqs, (numq123 + 1):numallq, :)
-        q3_absorption_freqs = reshape(q3_absorption_freqs, (numq3 * 3 * numatoms))
-
-        # Eigenvector reshaping goes from eigvecs[iq,branch,α,k] to eigvecs[λ,α,k]
-        # where λ conforms with mux2to1(s,iq,numq) from misc.jl 
-        # q1_eigvecs = view(harmonic.eigdisplacement, 1:numq1, :, :, :)
-        q1_eigvecs = getindex(harmonic.eigdisplacement, 1:numq1, :, :, :)
-        q1_eigvecs = reshape(q1_eigvecs, (numq1 * 3 * numatoms, 3, numatoms))
-
-        # q2_eigvecs = view(harmonic.eigdisplacement, (numq1 + 1):numq12, :, :, :)
-        q2_eigvecs = getindex(harmonic.eigdisplacement, (numq1 + 1):numq12, :, :, :)
-        q2_eigvecs = reshape(q2_eigvecs, (numq2 * 3 * numatoms, 3, numatoms))
-
-        # q3_emission_eigvecs =
-        #     view(harmonic.eigdisplacement, (numq12 + 1):numq123, :, :, :)
-        q3_emission_eigvecs =
-            getindex(harmonic.eigdisplacement, (numq12 + 1):numq123, :, :, :)
-        q3_emission_eigvecs =
-            reshape(q3_emission_eigvecs, (numq3 * 3 * numatoms, 3, numatoms))
-
-        # q3_absorption_eigvecs =
-        #     view(harmonic.eigdisplacement, (numq123 + 1):numallq, :, :, :)
-        q3_absorption_eigvecs =
-            getindex(harmonic.eigdisplacement, (numq123 + 1):numallq, :, :, :)
-        q3_absorption_eigvecs =
-            reshape(q3_absorption_eigvecs, (numq3 * 3 * numatoms, 3, numatoms))
+        # Convert needed q-points into cartesian coordinates
+        q2_cart = states.q2_cryst * permutedims(reclattvecs)
+        q3_abso_cart = Array{Float64,3}(undef, size(states.q3_abso_cryst))
+        q3_emit_cart = Array{Float64,3}(undef, size(states.q3_emit_cryst))
+        for iq1 in axes(q1_cryst, 1)
+            q3_abso_cart[:, :, iq1] .=
+                states.q3_abso_cryst[:, :, iq1] * permutedims(reclattvecs)
+            q3_emit_cart[:, :, iq1] .=
+                states.q3_emit_cryst[:, :, iq1] * permutedims(reclattvecs)
+        end
 
         # Calculating the lifetime
         numcontfreqs = size(cont_freqs, 1)

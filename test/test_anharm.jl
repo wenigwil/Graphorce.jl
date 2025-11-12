@@ -40,5 +40,5 @@ phonons = Phonons(
     cont_freqs,
     kbT,
     smearing;
-    bz_sampling = (3, 3, 3),
+    brillouin_sampling = (3, 3, 3),
 )
