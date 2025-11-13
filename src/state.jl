@@ -46,6 +46,9 @@ struct HarmonicStatesData
         q3_abso_cryst = reshape(q3_abso_cryst, (numq2, numq1, 3))
         q3_abso_cryst = permutedims(q3_abso_cryst, (1, 3, 2))
 
+        @info "Sizes of crystal coordinate qpoints" size(q3_abso_cryst) size(
+            q3_emit_cryst,
+        )
         # Define the ends of all qpoint-set data
         # End for q2 data
         numq12 = numq1 + numq2

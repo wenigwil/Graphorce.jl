@@ -45,6 +45,7 @@ struct Phonons
         snap_to_lattvecs!(lattvecs, trip2position_k)
         snap_to_lattvecs!(lattvecs, trip2position_j)
 
+        @info "Building HarmonicStatesData..."
         # Calculate and reshape the frequencies and eigenvectors of 3 phonons by a 
         # given sampling of the brillouin zone.
         states = HarmonicStatesData(
@@ -66,36 +67,32 @@ struct Phonons
                 states.q3_emit_cryst[:, :, iq1] * permutedims(reclattvecs)
         end
 
-        # Calculating the lifetime
-        numcontfreqs = size(cont_freqs, 1)
-        Γ = Matrix{Float64}(undef, (numcontfreqs, 3 * numatoms * numq1))
+        numq1 = size(q1_cryst, 1)
+        numq2 = size(states.q2_cryst, 1)
+        numfreq = size(cont_freqs, 1)
 
-        @info "Starting calculation of phonon lifetime..." numcontfreqs, numq1
-        for λ in axes(Γ, 2)
-            s, iq = demux1to2(λ, numq1)
-            q1_cp = q1_cryst[iq, :]
-            println("At λ=", λ, ". Corresponds to q_cart=", q1_cp)
-            for ifreq in axes(Γ, 1)
-                println("\tAt ifreq=", ifreq)
-                Γ[ifreq, λ] = begin
-                    1 / (numq1 * q1_freqs[λ]) * (calc_Λplus(
-                        smearing,
+        @info "Beginning lifetime calculation..."
+        # Calculating the lifetime
+        lifetime = Array{Float64,3}(undef, (numfreq, numq1, 3 * numatoms))
+        for λ in axes(q1_cryst, 1)
+            print("At λ=", λ)
+            s1, iq1 = demux1to2(λ, numq1)
+            ω = states.q1_freqs[λ]
+            for ifreq in 1:numfreq
+                lifetime[ifreq, iq1, s1] = begin
+                    1 / (numq2 * ω) * calc_Λplus(
                         λ,
                         cont_freqs[ifreq],
                         kbT,
-                        numatoms,
+                        smearing,
+                        states,
                         q2_cart,
-                        q3_absorption,
-                        q2_freqs,
-                        q3_absorption_freqs,
-                        q1_eigvecs,
-                        q2_eigvecs,
-                        q3_absorption_eigvecs,
+                        q3_abso_cart,
                         ifc3_tensor,
                         trip2atomindeces,
                         trip2position_j,
-                        trip2position_k;
-                    ))
+                        trip2position_k,
+                    )
                 end
             end
         end
@@ -103,44 +100,52 @@ struct Phonons
 end
 
 function calc_Λplus(
-    smearing::Float64,
     λ::Int64,
     ω::Float64,
     kbT::Float64,
-    numatoms::Int64,
-    q2::Matrix{Float64},
-    q3::Matrix{Float64},
-    q2_freqs::Vector{Float64},
-    q3_freqs::Vector{Float64},
-    q1_eigvecs::Array{ComplexF64,3},
-    q2_eigvecs::Array{ComplexF64,3},
-    q3_eigvecs::Array{ComplexF64,3},
+    smearing::Float64,
+    states::HarmonicStatesData,
+    q2_cart::Matrix{Float64},
+    q3_abso_cart::Array{Float64,3},
     ifc3_tensor::Array{Float64,4},
     trip2atomindices::Matrix{Int64},
     trip2position_j::Matrix{Float64},
-    trip2position_k::Matrix{Float64};
-)
-    numq2 = size(q2, 1)
-    numq3 = size(q3, 1)
+    trip2position_k::Matrix{Float64},
+)::Float64
+    numq1 = size(states.q1_cryst, 1)
+    numq2 = size(states.q2_cryst, 1)
+    _, iq1 = demux1to2(λ, numq1)
+
+    q2_freqs = states.q2_freqs
+    q3_abso_freqs = states.q3_abso_freqs
 
     Λplus = 0.0
-    Threads.@threads for λ′ in 1:(numq2 * 3 * numatoms)
-        for λ′′ in 1:(numq3 * 3 * numatoms)
-            ω′ = q2_freqs[λ′]
-            ω′′ = q3_freqs[λ′′]
+    Threads.@threads for λ′ in axes(states.q2_evec, 1)
+        for λ′′ in axes(states.q2_evec, 1)
+            _, iq′ = demux1to2(λ′, numq2)
+            _, iq′′ = demux1to2(λ′′, numq2)
 
-            statistics = bose(ω′, kbT) - bose(ω′′, kbT)
-            Λplus += @views begin
-                statistics / (ω′ * ω′′) *
+            q′ = q2_cart[iq′, :]
+            q′′ = q3_abso_cart[iq′′, :, iq1]
+            W_λ = states.q1_evec[λ, :, :]
+            W_λ′ = states.q2_evec[λ′, :, :]
+            W_λ′′ = states.q2_evec[λ′′, :, :, iq1]
+            ω′ = q2_freqs[λ′]
+            ω′′ = q3_abso_freqs[λ′′, iq1]
+
+            statistics = begin
+                bose(ω′ / RydtoTHz * rydberg_ev, kbT) -
+                bose(ω′′ / RydtoTHz * rydberg_ev, kbT)
+            end
+
+            Λplus += begin
+                statistics / (ω′′ * ω′) *
                 calc_V2(
-                    λ,
-                    λ′,
-                    λ′′,
-                    q2,
-                    q3,
-                    q1_eigvecs,
-                    q2_eigvecs,
-                    q3_eigvecs,
+                    q′,
+                    q′′,
+                    W_λ,
+                    W_λ′,
+                    W_λ′′,
                     ifc3_tensor,
                     trip2atomindices,
                     trip2position_j,
@@ -150,6 +155,8 @@ function calc_Λplus(
             end
         end
     end
+
+    return Λplus
 end
 
 """
@@ -196,28 +203,16 @@ branch index `s` using the `mux2to1(s,iq,numq)`-function.
   - `V2::ComplexF64`: Matrix element.
 """
 function calc_V2(
-    λ::Int64,
-    λ′::Int64,
-    λ′′::Int64,
-    q2::Matrix{Float64},
-    q3::Matrix{Float64},
-    q1_eigvecs::Array{ComplexF64,3},
-    q2_eigvecs::Array{ComplexF64,3},
-    q3_eigvecs::Array{ComplexF64,3},
+    q′::Vector{Float64},
+    q′′::Vector{Float64},
+    W_λ::Matrix{ComplexF64},
+    W_λ′::Matrix{ComplexF64},
+    W_λ′′::Matrix{ComplexF64},
     ifc3_tensor::Array{Float64,4},
     trip2atomindices::Matrix{Int64},
     trip2position_j::Matrix{Float64},
     trip2position_k::Matrix{Float64},
-)::Float64
-    # Get a view of the relevant eigenvectors as W_λ[cart_index, atom_index]
-    W_λ = view(q1_eigvecs, λ, :, :)
-    W_λ′ = view(q2_eigvecs, λ′, :, :)
-    W_λ′′ = view(q3_eigvecs, λ′′, :, :)
-
-    # Get the q-points corresponding to λ′ and λ′′
-    q′ = view(q2, demux1to2(λ′, size(W_λ′, 1))[2], :)
-    q′′ = view(q3, demux1to2(λ′′, size(W_λ′′, 1))[2], :)
-
+)
     V = 0.0 + im * 0.0
     for α in axes(W_λ, 1)
         for α′ in axes(W_λ′, 1)
@@ -226,7 +221,7 @@ function calc_V2(
                     V += @views begin
                         W_λ[α, trip2atomindices[itrip, 1]] *
                         W_λ′[α′, trip2atomindices[itrip, 2]] *
-                        W_λ′′[α′′, trip2atomindices[itrip, 3]] *
+                        conj(W_λ′′[α′′, trip2atomindices[itrip, 3]]) *
                         ifc3_tensor[itrip, α, α′, α′′] *
                         exp(im * LinAlg.dot(q′, trip2position_j[itrip, :])) *
                         exp(im * LinAlg.dot(q′′, trip2position_k[itrip, :]))
@@ -235,7 +230,6 @@ function calc_V2(
             end
         end
     end
-
     V2 = V * conj(V)
     return V2
 end
