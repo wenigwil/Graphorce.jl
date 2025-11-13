@@ -73,30 +73,114 @@ struct Phonons
 
         @info "Beginning lifetime calculation..."
         # Calculating the lifetime
-        lifetime = Array{Float64,3}(undef, (numfreq, numq1, 3 * numatoms))
+        scattering_rate = Array{Float64,3}(undef, (numfreq, numq1, 3 * numatoms))
         for λ in axes(q1_cryst, 1)
-            print("At λ=", λ)
+            println("At λ=", λ)
             s1, iq1 = demux1to2(λ, numq1)
             ω = states.q1_freqs[λ]
             for ifreq in 1:numfreq
-                lifetime[ifreq, iq1, s1] = begin
-                    1 / (numq2 * ω) * calc_Λplus(
-                        λ,
-                        cont_freqs[ifreq],
-                        kbT,
-                        smearing,
-                        states,
-                        q2_cart,
-                        q3_abso_cart,
-                        ifc3_tensor,
-                        trip2atomindeces,
-                        trip2position_j,
-                        trip2position_k,
+                if isapprox(ω, 0, atol = smearing)
+                    scattering_rate[ifreq, iq1, s1]
+                end
+                println("\t At ifreq=", ifreq)
+                scattering_rate[ifreq, iq1, s1] = begin
+                    1 / (numq2 * ω) * (
+                        calc_Λplus(
+                            λ,
+                            cont_freqs[ifreq],
+                            kbT,
+                            smearing,
+                            states,
+                            q2_cart,
+                            q3_abso_cart,
+                            ifc3_tensor,
+                            trip2atomindeces,
+                            trip2position_j,
+                            trip2position_k,
+                        ) +
+                        0.5 * calc_Λminus(
+                            λ,
+                            cont_freqs[ifreq],
+                            kbT,
+                            smearing,
+                            states,
+                            q2_cart,
+                            q3_emit_cart,
+                            ifc3_tensor,
+                            trip2atomindeces,
+                            trip2position_j,
+                            trip2position_k,
+                        )
                     )
                 end
+                println("\tLifetime here is ", scattering_rate[ifreq, iq1, s1])
             end
         end
     end
+end
+
+function calc_Λminus(
+    λ::Int64,
+    ω::Float64,
+    kbT::Float64,
+    smearing::Float64,
+    states::HarmonicStatesData,
+    q2_cart::Matrix{Float64},
+    q3_emit_cart::Array{Float64,3},
+    ifc3_tensor::Array{Float64,4},
+    trip2atomindices::Matrix{Int64},
+    trip2position_j::Matrix{Float64},
+    trip2position_k::Matrix{Float64},
+)::Float64
+    numq1 = size(states.q1_cryst, 1)
+    numq2 = size(states.q2_cryst, 1)
+    _, iq1 = demux1to2(λ, numq1)
+
+    q2_freqs = states.q2_freqs
+    q3_emit_freqs = states.q3_emit_freqs
+
+    Λminus = 0.0
+    for λ′ in axes(states.q2_evec, 1)
+        for λ′′ in axes(states.q2_evec, 1)
+            _, iq′ = demux1to2(λ′, numq2)
+            _, iq′′ = demux1to2(λ′′, numq2)
+
+            q′ = q2_cart[iq′, :]
+            q′′ = q3_emit_cart[iq′′, :, iq1]
+            W_λ = states.q1_evec[λ, :, :]
+            W_λ′ = states.q2_evec[λ′, :, :]
+            W_λ′′ = states.q3_emit_evec[λ′′, :, :, iq1]
+            ω′ = q2_freqs[λ′]
+            ω′′ = q3_emit_freqs[λ′′, iq1]
+
+            if isapprox(ω′, 0, atol = smearing) || isapprox(ω′, 0, atol = smearing)
+                continue
+            end
+            statistics = begin
+                bose(ω′ / RydtoTHz * rydberg_ev, kbT) +
+                bose(ω′′ / RydtoTHz * rydberg_ev, kbT) +
+                1
+            end
+
+            Λminus += begin
+                statistics / (ω′′ * ω′) *
+                calc_V2(
+                    q′,
+                    q′′,
+                    W_λ,
+                    W_λ′,
+                    W_λ′′,
+                    ifc3_tensor,
+                    trip2atomindices,
+                    trip2position_j,
+                    trip2position_k,
+                ) *
+                δ(ω, ω′′ + ω′; smearing)
+            end
+        end
+    end
+
+    return Λminus
 end
 
 function calc_Λplus(
@@ -120,7 +204,7 @@ function calc_Λplus(
     q3_abso_freqs = states.q3_abso_freqs
 
     Λplus = 0.0
-    Threads.@threads for λ′ in axes(states.q2_evec, 1)
+    for λ′ in axes(states.q2_evec, 1)
         for λ′′ in axes(states.q2_evec, 1)
             _, iq′ = demux1to2(λ′, numq2)
             _, iq′′ = demux1to2(λ′′, numq2)
@@ -129,10 +213,13 @@ function calc_Λplus(
             q′′ = q3_abso_cart[iq′′, :, iq1]
             W_λ = states.q1_evec[λ, :, :]
             W_λ′ = states.q2_evec[λ′, :, :]
-            W_λ′′ = states.q2_evec[λ′′, :, :, iq1]
+            W_λ′′ = states.q3_abso_evec[λ′′, :, :, iq1]
             ω′ = q2_freqs[λ′]
             ω′′ = q3_abso_freqs[λ′′, iq1]
 
+            if isapprox(ω′, 0, atol = smearing) || isapprox(ω′, 0, atol = smearing)
+                continue
+            end
             statistics = begin
                 bose(ω′ / RydtoTHz * rydberg_ev, kbT) -
                 bose(ω′′ / RydtoTHz * rydberg_ev, kbT)
@@ -212,7 +299,7 @@ function calc_V2(
     trip2atomindices::Matrix{Int64},
     trip2position_j::Matrix{Float64},
     trip2position_k::Matrix{Float64},
-)
+)::Float64
     V = 0.0 + im * 0.0
     for α in axes(W_λ, 1)
         for α′ in axes(W_λ′, 1)
