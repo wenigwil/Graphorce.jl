@@ -1,4 +1,6 @@
 struct Phonons
+    scattering_rate::Array{Float64,3}
+
     function Phonons(
         ebdata::ebInputData,
         deconvolution::DeconvData,
@@ -116,6 +118,8 @@ struct Phonons
                 println("\tLifetime here is ", scattering_rate[ifreq, iq1, s1])
             end
         end
+
+        new(scattering_rate)
     end
 end
 
@@ -138,24 +142,30 @@ function calc_Λminus(
 
     q2_freqs = states.q2_freqs
     q3_emit_freqs = states.q3_emit_freqs
+    W_λ = states.q1_evec[λ, :, :]
 
     Λminus = 0.0
-    for λ′ in axes(states.q2_evec, 1)
+    Threads.@threads for λ′ in axes(states.q2_evec, 1)
+        _, iq′ = demux1to2(λ′, numq2)
+        q′ = q2_cart[iq′, :]
+        ω′ = q2_freqs[λ′]
+        W_λ′ = states.q2_evec[λ′, :, :]
+
+        if isapprox(ω′, 0, atol = 0.5 * smearing)
+            continue
+        end
+
         for λ′′ in axes(states.q2_evec, 1)
-            _, iq′ = demux1to2(λ′, numq2)
             _, iq′′ = demux1to2(λ′′, numq2)
 
-            q′ = q2_cart[iq′, :]
             q′′ = q3_emit_cart[iq′′, :, iq1]
-            W_λ = states.q1_evec[λ, :, :]
-            W_λ′ = states.q2_evec[λ′, :, :]
             W_λ′′ = states.q3_emit_evec[λ′′, :, :, iq1]
-            ω′ = q2_freqs[λ′]
             ω′′ = q3_emit_freqs[λ′′, iq1]
 
-            if isapprox(ω′, 0, atol = smearing) || isapprox(ω′, 0, atol = smearing)
+            if isapprox(ω′′, 0, atol = 0.5 * smearing)
                 continue
             end
+
             statistics = begin
                 bose(ω′ / RydtoTHz * rydberg_ev, kbT) +
                 bose(ω′′ / RydtoTHz * rydberg_ev, kbT) +
@@ -164,7 +174,7 @@ function calc_Λminus(
 
             Λminus += begin
                 statistics / (ω′′ * ω′) *
-                calc_V2(
+                calc_V2minus(
                     q′,
                     q′′,
                     W_λ,
@@ -202,24 +212,31 @@ function calc_Λplus(
 
     q2_freqs = states.q2_freqs
     q3_abso_freqs = states.q3_abso_freqs
+    W_λ = states.q1_evec[λ, :, :]
 
     Λplus = 0.0
-    for λ′ in axes(states.q2_evec, 1)
+    Threads.@threads for λ′ in axes(states.q2_evec, 1)
+        _, iq′ = demux1to2(λ′, numq2)
+
+        q′ = q2_cart[iq′, :]
+        W_λ′ = states.q2_evec[λ′, :, :]
+        ω′ = q2_freqs[λ′]
+
+        if isapprox(ω′, 0, atol = 0.5 * smearing)
+            continue
+        end
+
         for λ′′ in axes(states.q2_evec, 1)
-            _, iq′ = demux1to2(λ′, numq2)
             _, iq′′ = demux1to2(λ′′, numq2)
 
-            q′ = q2_cart[iq′, :]
             q′′ = q3_abso_cart[iq′′, :, iq1]
-            W_λ = states.q1_evec[λ, :, :]
-            W_λ′ = states.q2_evec[λ′, :, :]
             W_λ′′ = states.q3_abso_evec[λ′′, :, :, iq1]
-            ω′ = q2_freqs[λ′]
             ω′′ = q3_abso_freqs[λ′′, iq1]
 
-            if isapprox(ω′, 0, atol = smearing) || isapprox(ω′, 0, atol = smearing)
+            if isapprox(ω′′, 0, atol = 0.5 * smearing)
                 continue
             end
+
             statistics = begin
                 bose(ω′ / RydtoTHz * rydberg_ev, kbT) -
                 bose(ω′′ / RydtoTHz * rydberg_ev, kbT)
@@ -227,7 +244,7 @@ function calc_Λplus(
 
             Λplus += begin
                 statistics / (ω′′ * ω′) *
-                calc_V2(
+                calc_V2plus(
                     q′,
                     q′′,
                     W_λ,
@@ -289,7 +306,7 @@ branch index `s` using the `mux2to1(s,iq,numq)`-function.
 
   - `V2::ComplexF64`: Matrix element.
 """
-function calc_V2(
+function calc_V2plus(
     q′::Vector{Float64},
     q′′::Vector{Float64},
     W_λ::Matrix{ComplexF64},
@@ -311,7 +328,39 @@ function calc_V2(
                         conj(W_λ′′[α′′, trip2atomindices[itrip, 3]]) *
                         ifc3_tensor[itrip, α, α′, α′′] *
                         exp(im * LinAlg.dot(q′, trip2position_j[itrip, :])) *
-                        exp(im * LinAlg.dot(q′′, trip2position_k[itrip, :]))
+                        exp(-im * LinAlg.dot(q′′, trip2position_k[itrip, :]))
+                    end
+                end
+            end
+        end
+    end
+    V2 = V * conj(V)
+    return V2
+end
+
+function calc_V2minus(
+    q′::Vector{Float64},
+    q′′::Vector{Float64},
+    W_λ::Matrix{ComplexF64},
+    W_λ′::Matrix{ComplexF64},
+    W_λ′′::Matrix{ComplexF64},
+    ifc3_tensor::Array{Float64,4},
+    trip2atomindices::Matrix{Int64},
+    trip2position_j::Matrix{Float64},
+    trip2position_k::Matrix{Float64},
+)::Float64
+    V = 0.0 + im * 0.0
+    for α in axes(W_λ, 1)
+        for α′ in axes(W_λ′, 1)
+            for α′′ in axes(W_λ′′, 1)
+                for itrip in axes(ifc3_tensor, 1)
+                    V += @views begin
+                        W_λ[α, trip2atomindices[itrip, 1]] *
+                        conj(W_λ′[α′, trip2atomindices[itrip, 2]]) *
+                        conj(W_λ′′[α′′, trip2atomindices[itrip, 3]]) *
+                        ifc3_tensor[itrip, α, α′, α′′] *
+                        exp(-im * LinAlg.dot(q′, trip2position_j[itrip, :])) *
+                        exp(-im * LinAlg.dot(q′′, trip2position_k[itrip, :]))
                     end
                 end
             end
