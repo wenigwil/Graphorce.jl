@@ -77,14 +77,12 @@ struct Phonons
         # Calculating the lifetime
         scattering_rate = Array{Float64,3}(undef, (numfreq, numq1, 3 * numatoms))
         for λ in axes(q1_cryst, 1)
-            println("At λ=", λ)
             s1, iq1 = demux1to2(λ, numq1)
             ω = states.q1_freqs[λ]
             for ifreq in 1:numfreq
                 if isapprox(ω, 0, atol = smearing)
                     scattering_rate[ifreq, iq1, s1]
                 end
-                println("\t At ifreq=", ifreq)
                 scattering_rate[ifreq, iq1, s1] = begin
                     1 / (numq2 * ω) * (
                         calc_Λplus(
@@ -115,8 +113,9 @@ struct Phonons
                         )
                     )
                 end
-                println("\tLifetime here is ", scattering_rate[ifreq, iq1, s1])
+                println(scattering_rate[ifreq, iq1, s1])
             end
+            println("\n")
         end
 
         new(scattering_rate)
