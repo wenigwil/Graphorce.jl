@@ -254,12 +254,17 @@ function path_to_xaxis(
     return distances, xticks_labels, xticks_pos
 end
 
-function print_progress(current_index::Int64, max_index::Int64, step::Float64)
+function print_progress(
+    current_index::Int64,
+    max_index::Int64,
+    step::Float64;
+    prefix::AbstractString = "",
+)
     part = round(step * max_index, RoundNearest)
 
     if iszero(rem(current_index, part))
         progess = round(current_index / max_index * 100; digits = 4)
-        println(progess, "% done.")
+        println(prefix, progess, "% done.")
     end
     return
 end
