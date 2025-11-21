@@ -14,6 +14,7 @@ struct Phonons
     )
         # System description
         numatoms = ebdata.allocations["numatoms"]
+        numbranches = 3 * numatoms
         type2mass = ebdata.crystal_info["masses"]
         atindex2type = ebdata.crystal_info["atomtypes"]
         # The lattice vectors are in nm when they come out of the input.nml but we 
@@ -103,6 +104,7 @@ struct Phonons
                         trip2atomindeces,
                         trip2position_j,
                         trip2position_k,
+                        numbranches,
                     )
                 end
                 println("scattering rate is ", scattering_rate[ifreq, iq1, s1])
@@ -127,6 +129,7 @@ function calc_Λ(
     trip2atomindices::Matrix{Int64},
     trip2position_j::Matrix{Float64},
     trip2position_k::Matrix{Float64},
+    numbranches::Int64,
 )
     numq1 = size(states.q1_cryst, 1)
     numq2 = size(states.q2_cryst, 1)
@@ -136,8 +139,8 @@ function calc_Λ(
 
     Λ = 0.0
     for λ′ in axes(states.q2_evec, 1)
-        println("λ′=", λ′)
-        print_progress(λ′, numq2 * 3 * 2, 0.05; prefix = "λ′-loop is at ")
+        # println("λ′=", λ′)
+        # print_progress(λ′, numq2 * 3 * 2, 0.05; prefix = "λ′-loop is at ")
         ω′ = states.q2_freqs[λ′]
 
         # We skip the terms that will diverge as they do not contribute to the 
@@ -151,7 +154,9 @@ function calc_Λ(
         q′ = q2_cart[iq′, :]
         W_λ′ = states.q2_evec[λ′, :, :]
 
-        for λ′′ in axes(states.q2_evec, 1)
+        Threads.@threads for s′′ in 1:numbranches
+            λ′′ = mux2to1(s′′, iq′, numq2)
+
             ω′′_abso = states.q3_abso_freqs[λ′′, iq1]
             ω′′_emit = states.q3_emit_freqs[λ′′, iq1]
 
@@ -160,10 +165,8 @@ function calc_Λ(
                 continue
             end
 
-            _, iq′′ = demux1to2(λ′′, numq2)
-
-            q′′_abso = q3_abso_cart[iq′′, :, iq1]
-            q′′_emit = q3_emit_cart[iq′′, :, iq1]
+            q′′_abso = q3_abso_cart[iq′, :, iq1]
+            q′′_emit = q3_emit_cart[iq′, :, iq1]
 
             W_λ′′_abso = states.q3_abso_evec[λ′′, :, :, iq1]
             W_λ′′_emit = states.q3_emit_evec[λ′′, :, :, iq1]
