@@ -27,7 +27,8 @@ sodata = qeIfc2Output("examples/espresso.ifc2")
 # Read a phonopy ifc3 file
 todata = Ifc3Output("examples/force.fc3")
 
-cont_freqs = collect(range(12.5, 20, 300))
+# cont_freqs = collect(range(12.5, 20, 300))
+cont_freqs = [13.25]
 kbT = 25e-3 # 300K * k_B in eV
 smearing = 0.06
 phonons = Phonons(
@@ -39,5 +40,5 @@ phonons = Phonons(
     cont_freqs,
     kbT,
     smearing;
-    brillouin_sampling = (3, 3, 3),
+    brillouin_sampling = (12, 12, 12),
 )

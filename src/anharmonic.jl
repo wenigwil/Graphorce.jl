@@ -138,7 +138,7 @@ function calc_Λ(
     W_λ = states.q1_evec[λ, :, :]
 
     Λ = 0.0
-    for λ′ in axes(states.q2_evec, 1)
+    Threads.@threads for λ′ in axes(states.q2_evec, 1)
         # println("λ′=", λ′)
         # print_progress(λ′, numq2 * 3 * 2, 0.05; prefix = "λ′-loop is at ")
         ω′ = states.q2_freqs[λ′]
