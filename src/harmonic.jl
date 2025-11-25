@@ -129,9 +129,9 @@ struct DensityOfStates
         for i in axes(cont_energies, 1)
             density[i] = 0.0
             for j in axes(energies, 1)
-                density[i] += δ(cont_energies[i], energies[j], smearing = smearing)
+                density[i] += δ(cont_energies[i], energies[j]; smearing = smearing)
             end
-            density[i] /= numq * uc_volume
+            density[i] /= (numq * uc_volume)
         end
 
         new(density, cont_energies, energies)
