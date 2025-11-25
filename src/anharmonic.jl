@@ -8,7 +8,7 @@ struct Phonons
         todata::Ifc3Output,
         q1_cryst::Matrix{Float64},
         cont_freqs::Vector{Float64},
-        kbT::Float64,
+        T::Float64,
         smearing::Float64;
         brillouin_sampling::Tuple{Int64,Int64,Int64} = (30, 30, 30),
     )
@@ -21,6 +21,8 @@ struct Phonons
         # will do everything in Angstrom around here!
         lattvecs = ebdata.crystal_info["lattvecs"] * 10
         reclattvecs = calc_reciprocal_lattvecs(lattvecs)
+        # Convert temperature to kB * T in eV
+        kbT = kB_eV_over_K * T
 
         # Third Order Force Constants Data
         ifc3_tensor = todata.properties["ifc3_tensor"]
@@ -91,7 +93,7 @@ struct Phonons
                     continue
                 end
                 scattering_rate[ifreq, iq1, s1] = begin
-                    1 / (numq2 * ω) * calc_Λ(
+                    hbar_eV_over_THz * V2units_orig_to_new * pi / (4 * numq2 * ω) * calc_Λ(
                         λ,
                         cont_freqs[ifreq],
                         kbT,
@@ -154,7 +156,7 @@ function calc_Λ(
         q′ = q2_cart[iq′, :]
         W_λ′ = states.q2_evec[λ′, :, :]
 
-        Threads.@threads for s′′ in 1:numbranches
+        for s′′ in 1:numbranches
             λ′′ = mux2to1(s′′, iq′, numq2)
 
             ω′′_abso = states.q3_abso_freqs[λ′′, iq1]
@@ -199,7 +201,7 @@ function calc_Λ(
             end
 
             Λminus = begin
-                statistics_emit / (ω′′_abso * ω′) *
+                statistics_emit / (ω′′_emit * ω′) *
                 calc_V2minus(
                     q′,
                     q′′_emit,
@@ -211,7 +213,7 @@ function calc_Λ(
                     trip2position_j,
                     trip2position_k,
                 ) *
-                δ(ω, ω′′_abso + ω′; smearing)
+                δ(ω, ω′′_emit + ω′; smearing)
             end
 
             Λ += Λplus + 0.5 * Λminus
@@ -293,6 +295,7 @@ function calc_V2plus(
         end
     end
     V2 = V * conj(V)
+
     return V2
 end
 

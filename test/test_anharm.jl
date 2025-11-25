@@ -27,18 +27,23 @@ sodata = qeIfc2Output("examples/espresso.ifc2")
 # Read a phonopy ifc3 file
 todata = Ifc3Output("examples/force.fc3")
 
-# cont_freqs = collect(range(12.5, 20, 300))
-cont_freqs = [13.25]
-kbT = 25e-3 # 300K * k_B in eV
-smearing = 0.06
-phonons = Phonons(
-    ebdata,
-    deconvolution,
-    sodata,
-    todata,
-    [0.0 0.0 0.0],
-    cont_freqs,
-    kbT,
-    smearing;
-    brillouin_sampling = (12, 12, 12),
-)
+cont_freqs = collect(range(10, 20, 20))
+T = 300.0
+smearing = 0.01
+
+samplings = [4, 6, 8, 12]
+phonon_container = Vector{Graphorce.Phonons}(undef, length(samplings))
+
+for i in axes(samplings, 1)
+    phonon_container[i] = Phonons(
+        ebdata,
+        deconvolution,
+        sodata,
+        todata,
+        [0.0 0.0 0.0],
+        cont_freqs,
+        T,
+        smearing;
+        brillouin_sampling = (samplings[i], samplings[i], samplings[i]),
+    )
+end

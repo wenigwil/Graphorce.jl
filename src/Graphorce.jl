@@ -19,6 +19,7 @@ export DeconvData
 
 include("harmonic.jl")
 export LatticeVibrations
+export DensityOfStates
 
 include("state.jl")
 include("anharmonic.jl")

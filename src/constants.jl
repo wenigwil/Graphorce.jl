@@ -15,8 +15,16 @@ const hbar_eV_over_THz = hbar_J_over_THz / ev_joule
 # angular frequency in rydberg to ang. THz
 const RydtoTHz = (rydberg_joule / hbar_J_over_THz) / (2 * pi)
 
-# Mass of an electron in kg
-const m_e = 9.10938291e-31
-
 # Dalton (Unified atomic mass unit) in kg
 const m_u = 1.660538921e-27
+
+# Converting the units of the mass-normalized squared ph-ph-matrix elements from
+# eV² / (Å⁶ * u³ ) to THz⁶/eV
+const V2units_orig_to_new = 1e-12 * ev_joule^3 / m_u^3
+
+# Boltzmann constant
+const kB_J_over_K = 1.380649e-23
+const kB_eV_over_K = kB_J_over_K / ev_joule
+
+# Mass of an electron in kg
+const m_e = 9.10938291e-31
