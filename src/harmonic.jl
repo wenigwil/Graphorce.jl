@@ -126,7 +126,7 @@ struct DensityOfStates
 
         density = zeros(Float64, size(cont_energies, 1))
 
-        for i in axes(cont_energies, 1)
+        Threads.@threads for i in axes(cont_energies, 1)
             density[i] = 0.0
             for j in axes(energies, 1)
                 density[i] += δ(cont_energies[i], energies[j]; smearing = smearing)
