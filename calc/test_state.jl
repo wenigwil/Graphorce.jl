@@ -28,14 +28,5 @@ sympath = Sympath(seek_path_points, point_labels, route; numpoints_per_section =
 q1_cryst = sympath.qpoints
 brillouin_sampling = (5, 5, 5)
 
-q2_cryst =
-    states = HarmonicStatesData(
-        ebdata,
-        sodata,
-        deconvolution,
-        q1_cryst;
-        brillouin_sampling,
-    )
-
-
-
+states =
+    HarmonicStatesData(ebdata, sodata, deconvolution, q1_cryst; brillouin_sampling)
