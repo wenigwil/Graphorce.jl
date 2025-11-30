@@ -1,4 +1,4 @@
-module Graphorce
+module Phunky
 
 import Logging
 import LinearAlgebra as LinAlg
@@ -25,4 +25,4 @@ include("state.jl")
 include("anharmonic.jl")
 export Phonons
 
-end # module Graphorce
+end # module Phunky

@@ -1,5 +1,5 @@
-name = "Graphorce"
-uuid = "0c7ffccf-fb8b-4398-9dab-2036c205e4ae"
+name = "Phunky"
+uuid = "3b2b43e2-0ac9-48cd-b393-3be551a2b3fb"
 version = "0.1.0"
 authors = ["wenigwil <github@wenigwil.com>"]
 
@@ -12,7 +12,7 @@ Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 
 [compat]
 BenchmarkTools = "1.6.3"
-LinearAlgebra = "1.11.0"
+LinearAlgebra = "1.12.0"
 Logging = "1.11.0"
 PGFPlotsX = "1.6.2"
-Plots = "1.40.19"
+Plots = "1.41.2"

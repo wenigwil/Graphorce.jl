@@ -136,7 +136,7 @@ function calc_Λ(
     numq1 = size(states.q1_cryst, 1)
     numq2 = size(states.q2_cryst, 1)
 
-    _, iq1 = demux1to2(λ, numq1)
+    _, iq = demux1to2(λ, numq1)
     W_λ = states.q1_evec[λ, :, :]
 
     Λ = 0.0
@@ -156,22 +156,24 @@ function calc_Λ(
         q′ = q2_cart[iq′, :]
         W_λ′ = states.q2_evec[λ′, :, :]
 
-        for s′′ in 1:numbranches
-            λ′′ = mux2to1(s′′, iq′, numq2)
+        iq′′ = mux2to1(iq, iq′, numq2)
 
-            ω′′_abso = states.q3_abso_freqs[λ′′, iq1]
-            ω′′_emit = states.q3_emit_freqs[λ′′, iq1]
+        for s′′ in 1:numbranches
+            λ′′ = mux2to1(s′′, iq′′, numq2)
+
+            ω′′_abso = states.q3_abso_freqs[λ′′, iq]
+            ω′′_emit = states.q3_emit_freqs[λ′′, iq]
 
             if isapprox(ω′′_abso, 0, atol = 0.5 * smearing) ||
                isapprox(ω′′_emit, 0, atol = 0.5 * smearing)
                 continue
             end
 
-            q′′_abso = q3_abso_cart[iq′, :, iq1]
-            q′′_emit = q3_emit_cart[iq′, :, iq1]
+            q′′_abso = q3_abso_cart[iq′, :, iq]
+            q′′_emit = q3_emit_cart[iq′, :, iq]
 
-            W_λ′′_abso = states.q3_abso_evec[λ′′, :, :, iq1]
-            W_λ′′_emit = states.q3_emit_evec[λ′′, :, :, iq1]
+            W_λ′′_abso = states.q3_abso_evec[λ′′, :, :, iq]
+            W_λ′′_emit = states.q3_emit_evec[λ′′, :, :, iq]
 
             statistics_abso = begin
                 bose(ω′ / RydtoTHz * rydberg_ev, kbT) -

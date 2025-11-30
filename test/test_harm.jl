@@ -1,7 +1,7 @@
 import Plots;
 using BenchmarkTools;
 Plots.pgfplotsx();
-using Graphorce
+using Phunky
 
 # Seekpath cF1 high symmetry points
 point_labels = ["Γ", "K", "L", "U", "W", "X", raw"$\mathrm{W}_2$"]
