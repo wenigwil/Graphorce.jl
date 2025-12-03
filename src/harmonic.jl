@@ -42,10 +42,10 @@ struct LatticeVibrations
 
         qpoints_cart = qpoints_cryst * permutedims(reclattvecs)
 
-        @info """
-        LatticeVibration Constructor: Beginning parallel computation of eigenvectors 
-        and frequencies...
-        """ size(qpoints_cryst)
+        # @info """
+        # LatticeVibration Constructor: Beginning parallel computation of eigenvectors 
+        # and frequencies...
+        # """ size(qpoints_cryst)
 
         Threads.@threads for iq in axes(qpoints_cryst, 1)
             # print_progress(iq, numqpoints, 0.05)

@@ -25,4 +25,6 @@ include("state.jl")
 include("anharmonic.jl")
 export Phonons
 
+include("tests.jl")
+
 end # module Phunky

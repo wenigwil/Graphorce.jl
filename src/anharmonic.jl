@@ -141,25 +141,21 @@ function calc_Λ(
 
     Λ = 0.0
     Threads.@threads for λ′ in axes(states.q2_evec, 1)
-        # println("λ′=", λ′)
-        # print_progress(λ′, numq2 * 3 * 2, 0.05; prefix = "λ′-loop is at ")
+        _, iq′ = demux1to2(λ′, numq2)
+
         ω′ = states.q2_freqs[λ′]
 
         # We skip the terms that will diverge as they do not contribute to the 
         # lifetime of the phonons
-        if isapprox(ω′, 0, atol = 0.5 * smearing)
+        if isapprox(ω′, 0.0, atol = 0.5 * smearing)
             continue
         end
-
-        _, iq′ = demux1to2(λ′, numq2)
 
         q′ = q2_cart[iq′, :]
         W_λ′ = states.q2_evec[λ′, :, :]
 
-        iq′′ = mux2to1(iq, iq′, numq2)
-
         for s′′ in 1:numbranches
-            λ′′ = mux2to1(s′′, iq′′, numq2)
+            λ′′ = mux2to1(s′′, iq′, numq2)
 
             ω′′_abso = states.q3_abso_freqs[λ′′, iq]
             ω′′_emit = states.q3_emit_freqs[λ′′, iq]

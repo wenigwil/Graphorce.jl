@@ -27,37 +27,37 @@ sodata = qeIfc2Output("examples/espresso.ifc2")
 # Read a phonopy ifc3 file
 todata = Ifc3Output("examples/force.fc3")
 
-cont_freqs = collect(range(10, 20, 20))
-cont_freqs = [13.25]
+# cont_freqs = collect(range(10, 20, 5))
+cont_freqs = [15.0]
 
 T = 300.0
 smearing = 0.01
 
-phonon_container[i] = Phonons(
-    ebdata,
-    deconvolution,
-    sodata,
-    todata,
-    [0.0 0.0 0.0],
-    cont_freqs,
-    T,
-    smearing;
-    brillouin_sampling = (3, 3, 3),
-)
+# phonon_container[i] = Phonons(
+#     ebdata,
+#     deconvolution,
+#     sodata,
+#     todata,
+#     [0.0 0.0 0.0],
+#     cont_freqs,
+#     T,
+#     smearing;
+#     brillouin_sampling = (3, 3, 3),
+# )
 
-# samplings = [4, 6, 8, 12]
-# phonon_container = Vector{Phunky.Phonons}(undef, length(samplings))
-#
-# for i in axes(samplings, 1)
-#     phonon_container[i] = Phonons(
-#         ebdata,
-#         deconvolution,
-#         sodata,
-#         todata,
-#         [0.0 0.0 0.0],
-#         cont_freqs,
-#         T,
-#         smearing;
-#         brillouin_sampling = (samplings[i], samplings[i], samplings[i]),
-#     )
-# end
+samplings = [4, 6, 8, 12, 14]
+phonon_container = Vector{Phunky.Phonons}(undef, length(samplings))
+
+for i in axes(samplings, 1)
+    phonon_container[i] = Phonons(
+        ebdata,
+        deconvolution,
+        sodata,
+        todata,
+        [0.0 0.0 0.0],
+        cont_freqs,
+        T,
+        smearing;
+        brillouin_sampling = (samplings[i], samplings[i], samplings[i]),
+    )
+end

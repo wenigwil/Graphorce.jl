@@ -20,7 +20,8 @@ struct HarmonicStatesData
         brillouin_sampling::Tuple{Int64,Int64,Int64} = (10, 10, 10),
     )
         numatoms = ebdata.allocations["numatoms"]
-        @info "Sampling the Brillouin Zone..."
+        # @info "Sampling the Brillouin Zone..."
+        # q2_cryst = sample_cube(brillouin_sampling)
         q2_cryst = sample_cube(brillouin_sampling)
 
         numbranch = 3 * numatoms
@@ -29,7 +30,7 @@ struct HarmonicStatesData
         numq3 = numq1 * numq2
         numallq = numq1 + numq2 + 2 * numq3
 
-        @info "Building q3 points for emission and absorption..." numq1 numq2 numq3
+        # @info "Building q3 points for emission and absorption..." numq1 numq2 numq3
         q3_emit_cryst = Matrix{Float64}(undef, (numq3, 3))
         q3_abso_cryst = Matrix{Float64}(undef, (numq3, 3))
         fill_q3!(q1_cryst, q2_cryst, q3_abso_cryst, q3_emit_cryst)
@@ -37,7 +38,7 @@ struct HarmonicStatesData
         # Stack all qpoints to calculate everything in one go
         allq = vcat(q1_cryst, q2_cryst, q3_emit_cryst, q3_abso_cryst)
 
-        @info "Calculating harmonic properties for all q-points..." numq3 numallq
+        # @info "Calculating harmonic properties for all q-points..." numq3 numallq
         harmonic = LatticeVibrations(ebdata, sodata, deconvolution, allq)
 
         q3_emit_cryst = reshape(q3_emit_cryst, (numq2, numq1, 3))
@@ -46,9 +47,9 @@ struct HarmonicStatesData
         q3_abso_cryst = reshape(q3_abso_cryst, (numq2, numq1, 3))
         q3_abso_cryst = permutedims(q3_abso_cryst, (1, 3, 2))
 
-        @info "Sizes of crystal coordinate qpoints" size(q3_abso_cryst) size(
-            q3_emit_cryst,
-        )
+        # @info "Sizes of crystal coordinate qpoints" size(q3_abso_cryst) size(
+        #     q3_emit_cryst,
+        # )
         # Define the ends of all qpoint-set data
         # End for q2 data
         numq12 = numq1 + numq2
@@ -75,7 +76,7 @@ struct HarmonicStatesData
         q1_eigvecs = reshape(q1_eigvecs, (numq1 * numbranch, 3, numatoms))
         q2_eigvecs = reshape(q2_eigvecs, (numq2 * numbranch, 3, numatoms))
 
-        @info "Beginning reshaping of q3 points..."
+        # @info "Beginning reshaping of q3 points..."
         # We need to demux the fastest index in the q3_abso and q3_emit data which 
         # was the result of muxing iq1 (slow) and iq2 (fast). See the docs on 
         # fill_q3!()
@@ -117,6 +118,10 @@ struct HarmonicStatesData
     end
 end
 
+function wrap(x::AbstractFloat, b::AbstractFloat)
+    return 2 * mod((x - b) / 2, b) - b
+end
+
 """
 Calculate the q-vectors in crystal coordinates for the third phonon in both 3-phonon
 processes using the conservation of momentum. `q1` is intended to be sampled along
@@ -146,6 +151,32 @@ function fill_q3!(
                 )
             q3_emit[iq3, :] =
                 mod.(
+                    view(q1_cryst, iq1, :) - view(q2_cryst, iq2, :),
+                    ones(Float64, 3),
+                )
+        end
+    end
+
+    return
+end
+
+function fill_q3_Γ_centered!(
+    q1_cryst::Matrix{Float64},
+    q2_cryst::Matrix{Float64},
+    q3_abso::Matrix{Float64},
+    q3_emit::Matrix{Float64},
+)
+    iq3 = 0
+    for iq1 in axes(q1_cryst, 1)
+        for iq2 in axes(q2_cryst, 1)
+            iq3 += 1
+            q3_abso[iq3, :] =
+                wrap.(
+                    view(q1_cryst, iq1, :) + view(q2_cryst, iq2, :),
+                    ones(Float64, 3),
+                )
+            q3_emit[iq3, :] =
+                wrap.(
                     view(q1_cryst, iq1, :) - view(q2_cryst, iq2, :),
                     ones(Float64, 3),
                 )

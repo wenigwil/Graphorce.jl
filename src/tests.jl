@@ -38,7 +38,7 @@ function test_anharm_reshape(bz_sampling::Tuple{Int64,Int64,Int64})
 
     # THIS IS WHERE THE REAL TEST ACTUALLY BEGINS
     # We will build the harmonic data by HarmonicStateData and for each qpoint-set 
-    # alone and compare 
+    # alone with LatticeVibrations() and compare 
 
     states = HarmonicStatesData(
         ebdata,
@@ -53,44 +53,31 @@ function test_anharm_reshape(bz_sampling::Tuple{Int64,Int64,Int64})
     q3_abso_data = LatticeVibrations(ebdata, sodata, deconvolution, q3_abso_cryst)
     q3_emit_data = LatticeVibrations(ebdata, sodata, deconvolution, q3_emit_cryst)
 
-    allq = vcat(q1_cryst, q2_cryst, q3_abso_cryst, q3_emit_cryst)
-    allq_data = LatticeVibrations(ebdata, sodata, deconvolution, allq)
-    copy_q1_evec = allq_data.eigdisplacement[(1:numq1), :, :, :]
+    # allq = vcat(q1_cryst, q2_cryst, q3_abso_cryst, q3_emit_cryst)
+    # allq_data = LatticeVibrations(ebdata, sodata, deconvolution, allq)
+    # copy_q1_evec = allq_data.eigdisplacement[(1:numq1), :, :, :]
 
-    # copy_q1_data = LatticeVibrations(ebdata, sodata, deconvolution, q1_cryst)
-    # copy_q1_evec = copy_q1_data.eigdisplacement
+    # This is a specific identical copy which can be used to test a test.
+    copy_q1_data = LatticeVibrations(ebdata, sodata, deconvolution, q1_cryst)
 
     # First we test the data corresponding to the q1-set coming from Sympath
     maxλ = numq1 * numbranches
-    q1freq_match = Vector{Bool}(undef, maxλ)
+    maxλ′ = numq2 * numbranches
+    maxλ′′ = numq1 * numq2 * numbranches
 
     println("Checking the data related to the q1-set from Sympath...")
     println("\tChecking the frequencies...")
+    q1freq_match = Vector{Bool}(undef, maxλ)
     for λ in 1:maxλ
         s, iq = demux1to2(λ, numq1)
         q1freq_match[λ] =
-            isapprox(q1_data.fullq_freqs[iq, s], states.q1_freqs[λ], atol = 1e-9)
+            isapprox(q1_data.fullq_freqs[iq, s], states.q1_freqs[λ], atol = 1e-6)
         # println("λ=", λ, "\t s=", s, "\t iq=", iq, "\t check=", q1freq_match[λ])
     end
     println("\tIs q1freq_match true everywhere? ", all(q1freq_match), "\n")
 
-    println("\tChecking the eigenvectors...")
-    q1eigvec_match = Array{ComplexF64}(undef, (maxλ, numatoms))
-    for λ in 1:maxλ
-        s, iq = demux1to2(λ, numq1)
-        for k in 1:numatoms
-            q1eigvec_match[λ, k] = LinAlg.norm(
-                LinAlg.cross(
-                    states.q1_evec[λ, :, k],
-                    q1_data.eigdisplacement[iq, s, :, k],
-                ),
-            )
-        end
-    end
-    # println("\tIs q1eigvec_match true everywhere? ", all(q1eigvec_match), "\n")
-
-    println("\tChecking if the slicing is the problem...")
-    q1copy_match = Array{Bool}(undef, (numq1, numbranches, numatoms))
+    println("\tChecking for the parallelity of eigenvectors...")
+    q1evec_match = Array{Bool}(undef, (numq1, numbranches, numatoms))
     for λ in 1:maxλ
         s, iq = demux1to2(λ, numq1)
         for k in 1:numatoms
@@ -98,22 +85,129 @@ function test_anharm_reshape(bz_sampling::Tuple{Int64,Int64,Int64})
                 q1_data.eigdisplacement[iq, s, :, k],
                 states.q1_evec[λ, :, k],
             )
-            q1copy_match[iq, s, k] =
-                all(isapprox.(parallel, 0.0 + im * 0.0, atol = 0.25))
-            # if ~q1copy_match[iq, s, k]
-            #     println("Not parallel at q=", q1_cryst[iq], " ", (iq, s, k))
-            #     println(
-            #         q1_data.eigdisplacement[iq, s, :, k],
-            #         " ≈ ",
-            #         copy_q1_evec[iq, s, :, k],
-            #     )
-            # end
+            q1evec_match[iq, s, k] =
+                all(isapprox.(parallel, 0.0 + im * 0.0, atol = 0.1))
         end
     end
     println(
-        "\tIs q1copy_match true everywhere? ",
-        sum(q1copy_match) / length(q1copy_match),
-        "\n",
+        "\tIs q1evec_match true everywhere? ",
+        round(100.0 * sum(q1evec_match) / length(q1evec_match), digits = 2),
+        " %\n",
     )
-    return q1copy_match
+
+    println("Checking the data related to the q2-set from Full BZ...")
+    println("\tChecking the frequencies...")
+    q2freq_match = Vector{Bool}(undef, maxλ′)
+    for λ′ in 1:maxλ′
+        s′, iq′ = demux1to2(λ′, numq2)
+        q2freq_match[λ′] =
+            isapprox(q2_data.fullq_freqs[iq′, s′], states.q2_freqs[λ′], atol = 1e-6)
+    end
+    println("\tIs q2freq_match true everywhere? ", all(q2freq_match), "\n")
+
+    println("\tChecking for the parallelity of eigenvectors...")
+    q2evec_match = Array{Bool}(undef, (numq2, numbranches, numatoms))
+    for λ′ in 1:maxλ′
+        s′, iq′ = demux1to2(λ′, numq2)
+        for k′ in 1:numatoms
+            parallel = LinAlg.cross(
+                q2_data.eigdisplacement[iq′, s′, :, k′],
+                states.q2_evec[λ′, :, k′],
+            )
+            q2evec_match[iq′, s′, k′] =
+                all(isapprox.(parallel, 0.0 + im * 0.0, atol = 0.1))
+        end
+    end
+    println(
+        "\tIs q2evec_match true everywhere? ",
+        round(100.0 * sum(q2evec_match) / length(q2evec_match), digits = 2),
+        " %\n",
+    )
+
+    # Now what's left is checking if the permuting and reshaping worked for the data 
+    # for both sets regarding the q3
+    println("Checking the data related to the q3-absorption and -emission sets...")
+    println("\tChecking the reshaping on the q3-vectors themselves...")
+
+    q3abso_match = Array{Bool}(undef, (numq2, 3, numq1))
+    q3emit_match = Array{Bool}(undef, (numq2, 3, numq1))
+    for iq2 in 1:numq2
+        for α in 1:3
+            for iq1 in 1:numq1
+                iq3 = mux2to1(iq1, iq2, numq2)
+                q3abso_match[iq2, α, iq1] = isapprox(
+                    q3_abso_cryst[iq3, α],
+                    states.q3_abso_cryst[iq2, α, iq1],
+                    atol = 1e-6,
+                )
+
+                q3emit_match[iq2, α, iq1] = isapprox(
+                    q3_emit_cryst[iq3, α],
+                    states.q3_emit_cryst[iq2, α, iq1],
+                    atol = 1e-6,
+                )
+            end
+        end
+    end
+    println("\tIs q3abso_match true everywhere? ", all(q3abso_match))
+    println("\tIs q3emit_match true everywhere? ", all(q3emit_match), "\n")
+
+    println("\tChecking the reshaping of the frequencies...")
+    q3absofreq_match = Array{Bool}(undef, (maxλ′, numq1))
+    q3emitfreq_match = Array{Bool}(undef, (maxλ′, numq1))
+
+    for λ′ in 1:maxλ′
+        s′, iq′ = demux1to2(λ′, numq2)
+        for iq in 1:numq1
+            iq′′ = mux2to1(iq, iq′, numq2)
+            q3absofreq_match[λ′, iq] = isapprox(
+                q3_abso_data.fullq_freqs[iq′′, s′],
+                states.q3_abso_freqs[λ′, iq],
+                atol = 1e-6,
+            )
+
+            q3emitfreq_match[λ′, iq] = isapprox(
+                q3_emit_data.fullq_freqs[iq′′, s′],
+                states.q3_emit_freqs[λ′, iq],
+                atol = 1e-6,
+            )
+        end
+    end
+    println("\tIs q3absofreq_match true everywhere? ", all(q3absofreq_match))
+    println("\tIs q3emitfreq_match true everywhere? ", all(q3emitfreq_match), "\n")
+
+    println("\tChecking the reshaping of the q3 eigenvectors...")
+    q3absoevec_match = Array{Bool}(undef, (maxλ′, numatoms, numq1))
+    q3emitevec_match = Array{Bool}(undef, (maxλ′, numatoms, numq1))
+    for λ′ in 1:maxλ′
+        s′, iq′ = demux1to2(λ′, numq2)
+        for k in 1:numatoms
+            for iq in 1:numq1
+                iq′′ = mux2to1(iq, iq′, numq2)
+                parallel_emit = LinAlg.cross(
+                    q3_abso_data.eigdisplacement[iq′′, s′, :, k],
+                    states.q3_abso_evec[λ′, :, k, iq],
+                )
+                q3absoevec_match[λ′, k, iq] =
+                    all(isapprox.(parallel_emit, 0.0 + im * 0.0, atol = 0.1))
+
+                parallel_emit = LinAlg.cross(
+                    q3_emit_data.eigdisplacement[iq′′, s′, :, k],
+                    states.q3_emit_evec[λ′, :, k, iq],
+                )
+                q3emitevec_match[λ′, k, iq] =
+                    all(isapprox.(parallel_emit, 0.0 + im * 0.0, atol = 0.1))
+            end
+        end
+    end
+    println(
+        "\tIs q3absoevec_match true everywhere? ",
+        round(100.0 * sum(q3absoevec_match) / length(q3absoevec_match), digits = 2),
+        " %",
+    )
+    println(
+        "\tIs q3emitevec_match true everywhere? ",
+        round(100.0 * sum(q3emitevec_match) / length(q3emitevec_match), digits = 2),
+        " %\n",
+    )
 end
